@@ -312,17 +312,19 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
         return 'name_collection';
         
       case 'trust_building':
-        // Переходим только при явно позитивной реакции
-        if (extractedData.isPositiveResponse && leadScore >= 3) {
-          this.logger.log('Stage transition: trust_building -> permission_request (positive response)');
-          return 'permission_request';
-        }
-        return 'trust_building';
+        // Автоматически переходим к запросу разрешения после установления имени
+        this.logger.log('Stage transition: trust_building -> permission_request (automatic after name)');
+        return 'permission_request';
         
       case 'permission_request':
-        // Переходим только при явном разрешении
-        if (extractedData.gavePermission) {
-          this.logger.log('Stage transition: permission_request -> situation_discovery (permission granted)');
+        // Переходим к бизнес-вопросам если пользователь не отказался явно
+        const userRefused = userMessage.toLowerCase().includes('нет') || 
+                           userMessage.toLowerCase().includes('no') ||
+                           userMessage.toLowerCase().includes('не хочу') ||
+                           userMessage.toLowerCase().includes('не надо');
+        
+        if (!userRefused) {
+          this.logger.log('Stage transition: permission_request -> situation_discovery (no explicit refusal)');
           return 'situation_discovery';
         }
         return 'permission_request';
