@@ -303,8 +303,9 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
         return 'name_collection';
         
       case 'name_collection':
-        // Переходим только если четко извлекли имя
-        if (extractedData.hasName) {
+        // Переходим если сообщение содержит имя (любое слово без спецсимволов)
+        const containsName = /^[А-Яа-яA-Za-z\s]{2,20}$/.test(userMessage.trim());
+        if (containsName || extractedData.hasName) {
           this.logger.log('Stage transition: name_collection -> trust_building (name detected)');
           return 'trust_building';
         }
@@ -330,41 +331,41 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
         return 'permission_request';
         
       case 'situation_discovery':
-        // Переходим только если четко извлек тип бизнеса
-        if (extractedData.businessType && leadScore >= 5) {
-          this.logger.log('Stage transition: situation_discovery -> problem_identification (business type extracted)');
+        // Переходим если пользователь ответил на вопрос о бизнесе (любой ответ кроме односложных)
+        if (userMessage.length > 3 || extractedData.businessType) {
+          this.logger.log('Stage transition: situation_discovery -> problem_identification (business response received)');
           return 'problem_identification';
         }
         return 'situation_discovery';
         
       case 'problem_identification':
-        // Переходим только если четко извлек проблемы
-        if (extractedData.challenges && leadScore >= 6) {
-          this.logger.log('Stage transition: problem_identification -> implication_development (challenges extracted)');
+        // Переходим если пользователь дал развернутый ответ о проблемах
+        if (userMessage.length > 10 || extractedData.challenges) {
+          this.logger.log('Stage transition: problem_identification -> implication_development (problem response received)');
           return 'implication_development';
         }
         return 'problem_identification';
         
       case 'implication_development':
-        // Переходим только при высоком engagement
-        if (leadScore >= 7) {
-          this.logger.log('Stage transition: implication_development -> need_payoff (high engagement)');
+        // Переходим если пользователь понимает последствия
+        if (userMessage.length > 5 || leadScore >= 5) {
+          this.logger.log('Stage transition: implication_development -> need_payoff (implications understood)');
           return 'need_payoff';
         }
         return 'implication_development';
         
       case 'need_payoff':
-        // Переходим к предложению при очень высоком интересе
-        if (leadScore >= 8) {
-          this.logger.log('Stage transition: need_payoff -> proposal (very high interest)');
+        // Переходим к предложению если пользователь проявляет интерес
+        if (userMessage.length > 3 || leadScore >= 5) {
+          this.logger.log('Stage transition: need_payoff -> proposal (interest shown)');
           return 'proposal';
         }
         return 'need_payoff';
         
       case 'proposal':
-        // Переходим к закрытию при максимальном интересе
-        if (leadScore >= 9) {
-          this.logger.log('Stage transition: proposal -> closing (maximum interest)');
+        // Переходим к закрытию если пользователь не отказался
+        if (userMessage.length > 2 || leadScore >= 4) {
+          this.logger.log('Stage transition: proposal -> closing (ready to close)');
           return 'closing';
         }
         return 'proposal';
