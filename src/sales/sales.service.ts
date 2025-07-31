@@ -277,7 +277,8 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
       'need_payoff': 6,
       'proposal': 7,
       'closing': 8,
-      'contact_collection': 10
+      'contact_collection': 10,
+      'conversation_completed': 10
     };
     
     score += stageScores[session.conversationStage] || 0;
@@ -389,7 +390,16 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
         return 'closing';
         
       case 'contact_collection':
-        return 'contact_collection'; // Остаемся на сборе контактов
+        // Переходим к завершению если получены контакты (телефон, email или любая контактная информация)
+        const hasContactInfo = /(\+?\d{10,15}|[\w\.-]+@[\w\.-]+\.\w+|@\w+)/i.test(userMessage);
+        if (hasContactInfo) {
+          this.logger.log('Stage transition: contact_collection -> conversation_completed (contacts received)');
+          return 'conversation_completed';
+        }
+        return 'contact_collection';
+        
+      case 'conversation_completed':
+        return 'conversation_completed'; // Разговор завершен
         
       default:
         return 'name_collection';

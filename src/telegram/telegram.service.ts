@@ -294,15 +294,28 @@ export class TelegramService implements OnModuleInit {
             ctx.session.conversationStage
           );
 
-          // Если достигли стадии contact_collection - помечаем как качественный лид
-          if (ctx.session.conversationStage === 'contact_collection') {
+          // Если достигли стадии conversation_completed - помечаем как завершенный лид
+          if (ctx.session.conversationStage === 'conversation_completed') {
             await this.conversationService.completeConversation(
               ctx.session.conversationId,
               true, // leadGenerated
-              response.leadScore || 10 // максимальный score за согласие
+              10 // максимальный score за завершенную сделку
             );
             
-            this.logger.log(`DEAL CLOSED! Lead ready for handoff. User: ${ctx.session.userId}, Score: ${response.leadScore || 10}`);
+            // Отправляем уведомление Алексу о новом лиде
+            await this.sendLeadNotification(ctx.session, conversationHistory);
+            
+            this.logger.log(`CONVERSATION COMPLETED! Contact info collected. User: ${ctx.session.userId}`);
+          }
+          // Если достигли стадии contact_collection - помечаем как качественный лид
+          else if (ctx.session.conversationStage === 'contact_collection') {
+            await this.conversationService.completeConversation(
+              ctx.session.conversationId,
+              true, // leadGenerated
+              response.leadScore || 9 // высокий score за согласие
+            );
+            
+            this.logger.log(`DEAL CLOSED! Lead ready for handoff. User: ${ctx.session.userId}, Score: ${response.leadScore || 9}`);
           }
           // Если достигли стадии closing и lead score высокий - помечаем как лид
           else if (ctx.session.conversationStage === 'closing' && response.leadScore && response.leadScore >= 7) {
@@ -346,5 +359,95 @@ export class TelegramService implements OnModuleInit {
     } catch (error) {
       this.logger.error('Error sending message:', error);
     }
+  }
+
+  private async sendLeadNotification(session: any, conversationHistory: Array<{role: 'user' | 'bot', message: string}>): Promise<void> {
+    try {
+      // Извлекаем информацию из истории разговора
+      const userName = session.userName || 'Неизвестно';
+      const businessType = session.userData?.businessType || this.extractBusinessFromHistory(conversationHistory);
+      const contactInfo = this.extractContactFromHistory(conversationHistory);
+      const summary = this.generateShortSummary(conversationHistory);
+
+      const leadMessage = `🎯 НОВЫЙ ЛИД!
+
+1. **Имя и контакт:**
+   ${userName}
+   ${contactInfo}
+
+2. **Сфера бизнеса:**
+   ${businessType}
+
+3. **Резюме:**
+   ${summary}
+
+📊 Lead Score: 10/10 (Сделка закрыта)`;
+
+      // Отправляем Алексу - используем его chat ID из конфигурации
+      const alexChatId = this.configService.get<string>('ALEX_CHAT_ID') || '5324875844'; // Ваш chat ID
+      await this.bot.telegram.sendMessage(alexChatId, leadMessage);
+      
+      this.logger.log(`Lead notification sent to Alex for user: ${session.userId}`);
+    } catch (error) {
+      this.logger.error('Error sending lead notification:', error);
+    }
+  }
+
+  private extractBusinessFromHistory(history: Array<{role: 'user' | 'bot', message: string}>): string {
+    // Ищем ответ пользователя на вопрос о бизнесе
+    for (let i = 0; i < history.length - 1; i++) {
+      const botMessage = history[i];
+      const userMessage = history[i + 1];
+      
+      if (botMessage.role === 'bot' && 
+          (botMessage.message.includes('бизнесом занимаетесь') || 
+           botMessage.message.includes('business are you in')) &&
+          userMessage.role === 'user') {
+        return userMessage.message;
+      }
+    }
+    return 'Не указано';
+  }
+
+  private extractContactFromHistory(history: Array<{role: 'user' | 'bot', message: string}>): string {
+    // Ищем последний ответ пользователя с контактной информацией
+    for (let i = history.length - 1; i >= 0; i--) {
+      const message = history[i];
+      if (message.role === 'user') {
+        // Проверяем на телефон, email или telegram
+        const phoneMatch = message.message.match(/\+?\d{10,15}/);
+        const emailMatch = message.message.match(/[\w\.-]+@[\w\.-]+\.\w+/);
+        const telegramMatch = message.message.match(/@\w+/);
+        
+        if (phoneMatch || emailMatch || telegramMatch) {
+          return message.message;
+        }
+      }
+    }
+    return 'Не указано';
+  }
+
+  private generateShortSummary(history: Array<{role: 'user' | 'bot', message: string}>): string {
+    // Находим основную проблему клиента
+    let problems: string[] = [];
+    
+    for (let i = 0; i < history.length - 1; i++) {
+      const botMessage = history[i];
+      const userMessage = history[i + 1];
+      
+      if (botMessage.role === 'bot' && userMessage.role === 'user' &&
+          (botMessage.message.includes('проблем') || 
+           botMessage.message.includes('вызов') ||
+           botMessage.message.includes('challenge') ||
+           botMessage.message.includes('problem'))) {
+        problems.push(userMessage.message);
+      }
+    }
+    
+    if (problems.length > 0) {
+      return `Основная проблема: ${problems[0].substring(0, 100)}...`;
+    }
+    
+    return 'Заинтересован в AI чат-боте для бизнеса';
   }
 }

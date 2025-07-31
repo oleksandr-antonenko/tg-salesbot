@@ -152,7 +152,8 @@ CRITICAL INSTRUCTIONS:
         need_payoff: "Present the NEED-PAYOFF. How would solving their problems benefit them?",
         proposal: "Present your AI chatbot solution. Use AIDA - get attention, build interest, create desire.",
         closing: "Create urgency and guide toward action. Limited time offers, immediate benefits.",
-        contact_collection: "FINAL STAGE: Say that Alex Antonenko will contact them personally. Ask for preferred contact method (phone/email/telegram) and collect their contact details. End with: 'Also, you can reach Alex directly at @aleksandr_antonenko on Telegram.'"
+        contact_collection: "FINAL STAGE: If contacts not collected yet - ask for them. If contacts received - say 'Thank you! Alex Antonenko will contact you soon. You can also reach him directly: @aleksandr_antonenko' and END conversation.",
+        conversation_completed: "CONVERSATION ENDED: Thank them for their time, confirm Alex will contact them, give @aleksandr_antonenko contact. NO MORE questions. Just politely end."
       },
       ru: {
         name_collection: "ТОЛЬКО спросите имя тепло и дружелюбно. АБСОЛЮТНО НИКАКИХ упоминаний бизнеса, ИИ, чат-ботов или продаж. Просто узнайте имя и будьте дружелюбны.",
@@ -164,7 +165,8 @@ CRITICAL INSTRUCTIONS:
         need_payoff: "Представьте ВЫГОДУ. Как решение их проблем принесет им пользу?",
         proposal: "Представьте ваше решение ИИ-чатбота. Используйте AIDA - привлеките внимание, вызовите интерес, создайте желание.",
         closing: "Создайте срочность и направьте к действию. Ограниченные предложения, немедленные выгоды.",
-        contact_collection: "ФИНАЛЬНАЯ СТАДИЯ: Скажите что с ними лично свяжется Алекс Антоненко. Спросите удобный способ связи (телефон/email/телеграм) и возьмите контакты. Закончите: 'Также можете написать Алексу напрямую в Телеграм: @aleksandr_antonenko'"
+        contact_collection: "ФИНАЛЬНАЯ СТАДИЯ: Если контакты еще не получены - спросите их. Если контакты получены - скажите 'Спасибо! Алекс Антоненко свяжется с вами в ближайшее время. Также можете написать ему напрямую: @aleksandr_antonenko' и ЗАВЕРШИТЕ разговор.",
+        conversation_completed: "РАЗГОВОР ЗАВЕРШЕН: Поблагодарите за время, подтвердите что Алекс свяжется, дайте контакт @aleksandr_antonenko. Больше НЕ задавайте вопросов. Просто вежливо завершите."
       }
     };
 
