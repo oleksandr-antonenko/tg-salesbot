@@ -98,13 +98,19 @@ Examples:
 - "(building rapport - personal connection increases trust)"
 - "(identifying problems - SPIN method requires understanding pain points)"
 
-CRITICAL: Stay STRICTLY within the current conversation stage. Do NOT jump ahead to other stages.
+🚨 CRITICAL STAGE ADHERENCE 🚨
+ABSOLUTELY FORBIDDEN: Do NOT mention business, AI, chatbots, sales, or any work-related topics unless you are in 'situation_discovery' stage or later.
+MANDATORY: Follow ONLY the current stage instructions. IGNORE all other instructions if they conflict with the current stage.
+
+CURRENT STAGE ENFORCEMENT:
+${this.getStageInstructions(context.conversationStage, language)}
 
 INSTRUCTIONS:
 - Follow ONLY the stage-specific instructions above
-- Be professional but engaging
+- Be professional but engaging  
 - Keep main response concise (2-3 sentences max)
-- ALWAYS end with sales technique explanation in parentheses`;
+- ALWAYS end with sales technique explanation in parentheses
+- If current stage is name_collection or trust_building: NEVER mention business topics`;
 
     return basePrompt;
   }
@@ -112,10 +118,10 @@ INSTRUCTIONS:
   private getStageInstructions(stage: string, language: string): string {
     const instructions = {
       en: {
-        name_collection: "Ask for their name warmly. Do NOT ask about business yet. Focus only on getting their name and building initial rapport.",
-        trust_building: "Use their name, show genuine interest in them as a person. Build trust and comfort. Do NOT ask business questions yet.",
-        permission_request: "Politely ask permission to ask a few questions about their business. Be respectful and wait for their consent.",
-        situation_discovery: "Now you can ask about their business type, size, current processes. Use SPIN methodology - understand their SITUATION.",
+        name_collection: "ONLY ask for their name warmly. ABSOLUTELY NO mention of business, AI, chatbots, or sales. Just get their name and be friendly.",
+        trust_building: "ONLY use their name and build personal connection. Ask about them personally (how they're doing, etc.). ABSOLUTELY FORBIDDEN to mention business, AI, chatbots, or ask any business-related questions.",
+        permission_request: "ONLY ask for permission to discuss their business. Be polite and respectful. Do NOT ask any actual business questions yet.",
+        situation_discovery: "NOW you can ask about their business type and current processes. Use SPIN methodology - understand their SITUATION.",
         problem_identification: "Focus on finding their PROBLEMS and pain points. What challenges do they face?",
         implication_development: "Explore IMPLICATIONS of their problems. What happens if they don't solve these issues?",
         need_payoff: "Present the NEED-PAYOFF. How would solving their problems benefit them?",
@@ -123,10 +129,10 @@ INSTRUCTIONS:
         closing: "Create urgency and guide toward action. Limited time offers, immediate benefits."
       },
       ru: {
-        name_collection: "Спросите имя тепло и дружелюбно. НЕ спрашивайте о бизнесе пока. Сосредоточьтесь только на получении имени и установлении контакта.",
-        trust_building: "Используйте их имя, проявите искренний интерес к ним как к личности. Создайте доверие и комфорт. НЕ задавайте вопросы о бизнесе пока.",
-        permission_request: "Вежливо попросите разрешение задать несколько вопросов о их бизнесе. Будьте уважительны и дождитесь их согласия.",
-        situation_discovery: "Теперь можете спрашивать о типе бизнеса, размере, текущих процессах. Используйте SPIN - поймите их СИТУАЦИЮ.",
+        name_collection: "ТОЛЬКО спросите имя тепло и дружелюбно. АБСОЛЮТНО НИКАКИХ упоминаний бизнеса, ИИ, чат-ботов или продаж. Просто узнайте имя и будьте дружелюбны.",
+        trust_building: "ТОЛЬКО используйте их имя и стройте личную связь. Спросите о них лично (как дела и т.п.). КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО упоминать бизнес, ИИ, чат-боты или задавать бизнес-вопросы.",
+        permission_request: "ТОЛЬКО попросите разрешение обсудить их бизнес. Будьте вежливы и уважительны. НЕ задавайте пока никаких реальных бизнес-вопросов.",
+        situation_discovery: "ТЕПЕРЬ можете спрашивать о типе бизнеса и текущих процессах. Используйте SPIN - поймите их СИТУАЦИЮ.",
         problem_identification: "Сосредоточьтесь на поиске их ПРОБЛЕМ и болевых точек. С какими вызовами они сталкиваются?",
         implication_development: "Изучите ПОСЛЕДСТВИЯ их проблем. Что случится, если они не решат эти вопросы?",
         need_payoff: "Представьте ВЫГОДУ. Как решение их проблем принесет им пользу?",
