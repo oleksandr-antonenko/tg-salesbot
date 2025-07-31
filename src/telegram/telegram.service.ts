@@ -405,7 +405,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 📊 Lead Score: 10/10 (Сделка закрыта)`;
 
       // Отправляем Алексу - используем его chat ID из конфигурации
-      const alexChatId = this.configService.get<string>('ALEX_CHAT_ID') || '5324875844'; // Ваш chat ID
+      const alexChatId = this.configService.get<string>('ALEX_CHAT_ID') ; // Ваш chat ID
       await this.bot.telegram.sendMessage(alexChatId, leadMessage);
       
       this.logger.log(`Lead notification sent to Alex for user: ${session.userId}`);
