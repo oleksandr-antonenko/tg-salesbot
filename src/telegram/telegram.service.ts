@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Telegraf, Context } from 'telegraf';
 import * as session from 'telegraf-session-local';
@@ -25,7 +25,7 @@ interface BotContext extends Context {
 }
 
 @Injectable()
-export class TelegramService implements OnModuleInit {
+export class TelegramService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(TelegramService.name);
   private bot: Telegraf<BotContext>;
 
@@ -48,10 +48,31 @@ export class TelegramService implements OnModuleInit {
     this.setupHandlers();
 
     try {
+      // Сначала пытаемся остановить предыдущие webhook/polling
+      await this.bot.telegram.deleteWebhook();
+      
       await this.bot.launch();
       this.logger.log('Telegram bot started successfully');
+      
+      // Graceful shutdown
+      process.once('SIGINT', () => this.bot.stop('SIGINT'));
+      process.once('SIGTERM', () => this.bot.stop('SIGTERM'));
+      
     } catch (error) {
-      this.logger.error('Failed to start Telegram bot:', error);
+      if (error.response?.error_code === 409) {
+        this.logger.error('Bot conflict detected. Another instance might be running. Waiting and retrying...');
+        // Ждем 5 секунд и пытаемся снова
+        setTimeout(async () => {
+          try {
+            await this.bot.launch();
+            this.logger.log('Telegram bot started successfully after retry');
+          } catch (retryError) {
+            this.logger.error('Failed to start bot after retry:', retryError);
+          }
+        }, 5000);
+      } else {
+        this.logger.error('Failed to start Telegram bot:', error);
+      }
     }
   }
 
@@ -449,5 +470,16 @@ export class TelegramService implements OnModuleInit {
     }
     
     return 'Заинтересован в AI чат-боте для бизнеса';
+  }
+
+  async onModuleDestroy() {
+    if (this.bot) {
+      try {
+        await this.bot.stop();
+        this.logger.log('Telegram bot stopped gracefully');
+      } catch (error) {
+        this.logger.error('Error stopping Telegram bot:', error);
+      }
+    }
   }
 }
