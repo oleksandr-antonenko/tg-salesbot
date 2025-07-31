@@ -294,8 +294,18 @@ export class TelegramService implements OnModuleInit {
             ctx.session.conversationStage
           );
 
+          // Если достигли стадии contact_collection - помечаем как качественный лид
+          if (ctx.session.conversationStage === 'contact_collection') {
+            await this.conversationService.completeConversation(
+              ctx.session.conversationId,
+              true, // leadGenerated
+              response.leadScore || 10 // максимальный score за согласие
+            );
+            
+            this.logger.log(`DEAL CLOSED! Lead ready for handoff. User: ${ctx.session.userId}, Score: ${response.leadScore || 10}`);
+          }
           // Если достигли стадии closing и lead score высокий - помечаем как лид
-          if (ctx.session.conversationStage === 'closing' && response.leadScore && response.leadScore >= 7) {
+          else if (ctx.session.conversationStage === 'closing' && response.leadScore && response.leadScore >= 7) {
             await this.conversationService.completeConversation(
               ctx.session.conversationId,
               true, // leadGenerated

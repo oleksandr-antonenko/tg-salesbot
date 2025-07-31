@@ -276,7 +276,8 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
       'implication_development': 5,
       'need_payoff': 6,
       'proposal': 7,
-      'closing': 8
+      'closing': 8,
+      'contact_collection': 10
     };
     
     score += stageScores[session.conversationStage] || 0;
@@ -371,7 +372,24 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
         return 'proposal';
         
       case 'closing':
-        return 'closing'; // Остаемся на закрытии
+        // Переходим к сбору контактов если пользователь согласился
+        const userAgreed = userMessage.toLowerCase().includes('да') || 
+                          userMessage.toLowerCase().includes('yes') ||
+                          userMessage.toLowerCase().includes('согласен') ||
+                          userMessage.toLowerCase().includes('устраивает') ||
+                          userMessage.toLowerCase().includes('подходит') ||
+                          userMessage.toLowerCase().includes('agree') ||
+                          userMessage.toLowerCase().includes('sure') ||
+                          userMessage.toLowerCase().includes('ok');
+        
+        if (userAgreed) {
+          this.logger.log('Stage transition: closing -> contact_collection (deal closed)');
+          return 'contact_collection';
+        }
+        return 'closing';
+        
+      case 'contact_collection':
+        return 'contact_collection'; // Остаемся на сборе контактов
         
       default:
         return 'name_collection';

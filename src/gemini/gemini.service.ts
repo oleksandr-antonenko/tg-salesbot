@@ -151,7 +151,8 @@ CRITICAL INSTRUCTIONS:
         implication_development: "Explore IMPLICATIONS of their problems. What happens if they don't solve these issues?",
         need_payoff: "Present the NEED-PAYOFF. How would solving their problems benefit them?",
         proposal: "Present your AI chatbot solution. Use AIDA - get attention, build interest, create desire.",
-        closing: "Create urgency and guide toward action. Limited time offers, immediate benefits."
+        closing: "Create urgency and guide toward action. Limited time offers, immediate benefits.",
+        contact_collection: "FINAL STAGE: Say that Alex Antonenko will contact them personally. Ask for preferred contact method (phone/email/telegram) and collect their contact details. End with: 'Also, you can reach Alex directly at @aleksandr_antonenko on Telegram.'"
       },
       ru: {
         name_collection: "ТОЛЬКО спросите имя тепло и дружелюбно. АБСОЛЮТНО НИКАКИХ упоминаний бизнеса, ИИ, чат-ботов или продаж. Просто узнайте имя и будьте дружелюбны.",
@@ -162,7 +163,8 @@ CRITICAL INSTRUCTIONS:
         implication_development: "Изучите ПОСЛЕДСТВИЯ их проблем. Что случится, если они не решат эти вопросы?",
         need_payoff: "Представьте ВЫГОДУ. Как решение их проблем принесет им пользу?",
         proposal: "Представьте ваше решение ИИ-чатбота. Используйте AIDA - привлеките внимание, вызовите интерес, создайте желание.",
-        closing: "Создайте срочность и направьте к действию. Ограниченные предложения, немедленные выгоды."
+        closing: "Создайте срочность и направьте к действию. Ограниченные предложения, немедленные выгоды.",
+        contact_collection: "ФИНАЛЬНАЯ СТАДИЯ: Скажите что с ними лично свяжется Алекс Антоненко. Спросите удобный способ связи (телефон/email/телеграм) и возьмите контакты. Закончите: 'Также можете написать Алексу напрямую в Телеграм: @aleksandr_antonenko'"
       }
     };
 
