@@ -312,9 +312,9 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
         return 'name_collection';
         
       case 'trust_building':
-        // Автоматически переходим к запросу разрешения после установления имени
-        this.logger.log('Stage transition: trust_building -> permission_request (automatic after name)');
-        return 'permission_request';
+        // Сразу переходим к выяснению бизнеса, пропуская запрос разрешения
+        this.logger.log('Stage transition: trust_building -> situation_discovery (direct to business)');
+        return 'situation_discovery';
         
       case 'permission_request':
         // Переходим к бизнес-вопросам если пользователь не отказался явно
