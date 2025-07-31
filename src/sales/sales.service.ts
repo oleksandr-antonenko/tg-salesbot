@@ -77,6 +77,7 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
   async processMessage(
     userMessage: string,
     session: ConversationSession,
+    conversationHistory?: Array<{role: 'user' | 'bot', message: string}>,
   ): Promise<ProcessMessageResponse> {
     try {
       const language = session.language;
@@ -111,6 +112,7 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
           conversationStage: updatedStage,
           userData: updatedUserData,
           previousStage: session.conversationStage,
+          conversationHistory,
         },
         language,
       );

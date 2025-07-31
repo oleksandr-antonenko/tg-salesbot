@@ -101,7 +101,12 @@ export class ConversationService {
   async getCurrentConversation(userId: number): Promise<Conversation | null> {
     return await this.conversationRepository.findOne({
       where: { userId, status: 'active' },
-      relations: ['messages']
+      relations: ['messages'],
+      order: {
+        messages: {
+          createdAt: 'ASC'
+        }
+      }
     });
   }
 

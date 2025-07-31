@@ -238,9 +238,23 @@ export class TelegramService implements OnModuleInit {
           ctx.session.conversationStage
         );
         
+        // Получаем историю разговора для контекста (последние 10 сообщений)
+        let conversationHistory: Array<{role: 'user' | 'bot', message: string}> = [];
+        if (ctx.session.dbUserId) {
+          const conversation = await this.conversationService.getCurrentConversation(ctx.session.dbUserId);
+          conversationHistory = conversation?.messages
+            ?.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+            ?.slice(-10) // Последние 10 сообщений
+            ?.map(msg => ({
+              role: msg.messageType as 'user' | 'bot',
+              message: msg.content
+            })) || [];
+        }
+        
         const response = await this.salesService.processMessage(
           userMessage,
           ctx.session,
+          conversationHistory,
         );
 
         await ctx.reply(response.message);

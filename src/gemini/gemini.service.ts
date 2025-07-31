@@ -35,6 +35,7 @@ export class GeminiService {
       conversationStage: string;
       userData: any;
       previousStage?: string;
+      conversationHistory?: Array<{role: 'user' | 'bot', message: string}>;
     },
     language: string,
   ): Promise<string> {
@@ -43,7 +44,18 @@ export class GeminiService {
       ? 'ОБЯЗАТЕЛЬНО ОТВЕЧАЙ НА РУССКОМ ЯЗЫКЕ!' 
       : 'RESPOND IN ENGLISH ONLY!';
     
-    const fullPrompt = `${systemPrompt}\n\n${languageReminder}\n\nUser message: "${userMessage}"\n\n${languageReminder}\n\nGenerate an appropriate sales response:`;
+    // Добавляем историю разговора для контекста
+    let conversationHistoryText = '';
+    if (conversationContext.conversationHistory && conversationContext.conversationHistory.length > 0) {
+      conversationHistoryText = '\n\nCONVERSATION HISTORY:\n';
+      conversationContext.conversationHistory.forEach((msg, index) => {
+        const role = msg.role === 'user' ? 'User' : 'Bot';
+        conversationHistoryText += `${role}: ${msg.message}\n`;
+      });
+      conversationHistoryText += '\n';
+    }
+    
+    const fullPrompt = `${systemPrompt}${conversationHistoryText}\n${languageReminder}\n\nCurrent user message: "${userMessage}"\n\n${languageReminder}\n\nGenerate an appropriate sales response that continues the conversation naturally:`;
 
     return this.generateResponse(fullPrompt);
   }
