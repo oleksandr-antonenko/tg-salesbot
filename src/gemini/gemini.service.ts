@@ -15,7 +15,7 @@ export class GeminiService {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    this.model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    this.model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
   }
 
   async generateResponse(prompt: string): Promise<string> {
@@ -39,7 +39,11 @@ export class GeminiService {
     language: string,
   ): Promise<string> {
     const systemPrompt = this.buildSalesPrompt(conversationContext, language);
-    const fullPrompt = `${systemPrompt}\n\nUser message: "${userMessage}"\n\nGenerate an appropriate sales response:`;
+    const languageReminder = language === 'ru' 
+      ? 'ОБЯЗАТЕЛЬНО ОТВЕЧАЙ НА РУССКОМ ЯЗЫКЕ!' 
+      : 'RESPOND IN ENGLISH ONLY!';
+    
+    const fullPrompt = `${systemPrompt}\n\n${languageReminder}\n\nUser message: "${userMessage}"\n\n${languageReminder}\n\nGenerate an appropriate sales response:`;
 
     return this.generateResponse(fullPrompt);
   }
@@ -52,7 +56,13 @@ export class GeminiService {
     },
     language: string,
   ): string {
-    const basePrompt = `You are an AI sales chatbot representing Alex Antonenko, a professional backend developer and Tech Lead specializing in AI chatbot development for businesses.
+    const languageInstruction = language === 'ru' 
+      ? 'КРИТИЧЕСКИ ВАЖНО: ОТВЕЧАЙ ТОЛЬКО НА РУССКОМ ЯЗЫКЕ! НИКАКОГО АНГЛИЙСКОГО!' 
+      : 'CRITICAL: RESPOND ONLY IN ENGLISH! NO OTHER LANGUAGES!';
+    
+    const basePrompt = `${languageInstruction}
+
+You are an AI sales chatbot representing Alex Antonenko, a professional backend developer and Tech Lead specializing in AI chatbot development for businesses.
 
 ABOUT ALEX ANTONENKO:
 - Professional backend developer and Tech Lead
@@ -72,16 +82,27 @@ YOUR ROLE:
 
 CONVERSATION STAGE: ${context.conversationStage}
 CUSTOMER DATA: ${JSON.stringify(context.userData)}
-LANGUAGE: ${language}
+
+${languageInstruction}
+
+CRITICAL DEMO REQUIREMENT:
+This is a DEMO chatbot to show sales techniques. You MUST add a brief explanation in parentheses at the end of EVERY response explaining what sales technique you're using and why.
+
+Examples:
+- "(устанавливаю rapport - личная связь повышает доверие)"
+- "(выясняю ситуацию по методу SPIN - нужно понять контекст)"
+- "(создаю urgency - ограниченное время мотивирует к действию)"
+- "(building rapport - personal connection increases trust)"
+- "(identifying problems - SPIN method requires understanding pain points)"
 
 INSTRUCTIONS:
-- Respond ONLY in ${language === 'ru' ? 'Russian' : 'English'}
 - Ask qualifying questions to understand business needs
 - Highlight pain points and lost opportunities without chatbots  
 - Present solutions that match their specific situation
 - Create urgency and guide toward PoC order
 - Be professional but engaging
-- Keep responses concise (2-3 sentences max)`;
+- Keep main response concise (2-3 sentences max)
+- ALWAYS end with sales technique explanation in parentheses`;
 
     return basePrompt;
   }

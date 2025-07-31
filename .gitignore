@@ -3,6 +3,11 @@
 /node_modules
 /build
 
+# Session storage
+sessions.json
+
+# Database
+database.sqlite
 
 # Logs
 logs
