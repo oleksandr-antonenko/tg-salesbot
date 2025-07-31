@@ -109,6 +109,7 @@ INSTRUCTIONS:
 - Follow ONLY the stage-specific instructions above
 - Be professional but engaging  
 - Keep main response concise (2-3 sentences max)
+- ALWAYS ask a relevant question to continue the conversation flow
 - ALWAYS end with sales technique explanation in parentheses
 - If current stage is name_collection or trust_building: NEVER mention business topics`;
 
@@ -119,7 +120,7 @@ INSTRUCTIONS:
     const instructions = {
       en: {
         name_collection: "ONLY ask for their name warmly. ABSOLUTELY NO mention of business, AI, chatbots, or sales. Just get their name and be friendly.",
-        trust_building: "ONLY use their name and build personal connection. Ask about them personally (how they're doing, etc.). ABSOLUTELY FORBIDDEN to mention business, AI, chatbots, or ask any business-related questions.",
+        trust_building: "ONLY use their name and build personal connection. Ask about them personally (how they're doing, their mood, where they're from, etc.). MUST ask a personal question. ABSOLUTELY FORBIDDEN to mention business, AI, chatbots, or ask any business-related questions.",
         permission_request: "ONLY ask for permission to discuss their business. Be polite and respectful. Do NOT ask any actual business questions yet.",
         situation_discovery: "NOW you can ask about their business type and current processes. Use SPIN methodology - understand their SITUATION.",
         problem_identification: "Focus on finding their PROBLEMS and pain points. What challenges do they face?",
@@ -130,7 +131,7 @@ INSTRUCTIONS:
       },
       ru: {
         name_collection: "ТОЛЬКО спросите имя тепло и дружелюбно. АБСОЛЮТНО НИКАКИХ упоминаний бизнеса, ИИ, чат-ботов или продаж. Просто узнайте имя и будьте дружелюбны.",
-        trust_building: "ТОЛЬКО используйте их имя и стройте личную связь. Спросите о них лично (как дела и т.п.). КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО упоминать бизнес, ИИ, чат-боты или задавать бизнес-вопросы.",
+        trust_building: "ТОЛЬКО используйте их имя и стройте личную связь. Спросите о них лично (как дела, как настроение, откуда они и т.п.). ОБЯЗАТЕЛЬНО задайте личный вопрос. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО упоминать бизнес, ИИ, чат-боты или задавать бизнес-вопросы.",
         permission_request: "ТОЛЬКО попросите разрешение обсудить их бизнес. Будьте вежливы и уважительны. НЕ задавайте пока никаких реальных бизнес-вопросов.",
         situation_discovery: "ТЕПЕРЬ можете спрашивать о типе бизнеса и текущих процессах. Используйте SPIN - поймите их СИТУАЦИЮ.",
         problem_identification: "Сосредоточьтесь на поиске их ПРОБЛЕМ и болевых точек. С какими вызовами они сталкиваются?",
