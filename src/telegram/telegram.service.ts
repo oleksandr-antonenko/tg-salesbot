@@ -21,6 +21,11 @@ interface BotContext extends Context {
       timeline?: string;
       contactInfo?: string;
     };
+    extractedContacts?: {
+      phone?: string;
+      email?: string;
+      telegram?: string;
+    };
   };
 }
 
@@ -384,10 +389,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
   private async sendLeadNotification(session: any, conversationHistory: Array<{role: 'user' | 'bot', message: string}>): Promise<void> {
     try {
-      // Извлекаем информацию из истории разговора
+      // Извлекаем информацию из сессии и истории разговора
       const userName = session.userName || 'Неизвестно';
       const businessType = session.userData?.businessType || this.extractBusinessFromHistory(conversationHistory);
-      const contactInfo = this.extractContactFromHistory(conversationHistory);
+      const contactInfo = this.formatExtractedContacts(session.extractedContacts) || this.extractContactFromHistory(conversationHistory);
       const summary = this.generateShortSummary(conversationHistory);
 
       const leadMessage = `🎯 НОВЫЙ ЛИД!
@@ -405,9 +410,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 📊 Lead Score: 10/10 (Сделка закрыта)`;
 
       // Отправляем Алексу - используем его chat ID из конфигурации
-      const alexChatId = this.configService.get<string>('ALEX_CHAT_ID') ; // Ваш chat ID
+      const alexChatId = this.configService.get<string>('ALEX_CHAT_ID') as string ; // Ваш chat ID
       await this.bot.telegram.sendMessage(alexChatId, leadMessage);
-      
+
       this.logger.log(`Lead notification sent to Alex for user: ${session.userId}`);
     } catch (error) {
       this.logger.error('Error sending lead notification:', error);
@@ -430,46 +435,84 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     return 'Не указано';
   }
 
+  private formatExtractedContacts(contacts?: { phone?: string; email?: string; telegram?: string }): string | null {
+    if (!contacts) return null;
+    
+    const contactList: string[] = [];
+    if (contacts.phone) contactList.push(`📞 ${contacts.phone}`);
+    if (contacts.email) contactList.push(`📧 ${contacts.email}`);
+    if (contacts.telegram) contactList.push(`💬 ${contacts.telegram}`);
+    
+    return contactList.length > 0 ? contactList.join('\n   ') : null;
+  }
+
   private extractContactFromHistory(history: Array<{role: 'user' | 'bot', message: string}>): string {
-    // Ищем последний ответ пользователя с контактной информацией
-    for (let i = history.length - 1; i >= 0; i--) {
+    // Ищем все ответы пользователя с контактной информацией
+    const contacts: string[] = [];
+    
+    for (let i = 0; i < history.length; i++) {
       const message = history[i];
       if (message.role === 'user') {
-        // Проверяем на телефон, email или telegram
-        const phoneMatch = message.message.match(/\+?\d{10,15}/);
+        // Более гибкие регулярные выражения
+        const phoneMatch = message.message.match(/(\+?\d{1,4}[-.\s]?\d{3,4}[-.\s]?\d{3,4}[-.\s]?\d{3,4}|\+?\d{10,15})/);
         const emailMatch = message.message.match(/[\w\.-]+@[\w\.-]+\.\w+/);
         const telegramMatch = message.message.match(/@\w+/);
         
-        if (phoneMatch || emailMatch || telegramMatch) {
-          return message.message;
+        if (phoneMatch) {
+          contacts.push(`📞 ${phoneMatch[0]}`);
+        }
+        if (emailMatch) {
+          contacts.push(`📧 ${emailMatch[0]}`);
+        }
+        if (telegramMatch) {
+          contacts.push(`💬 ${telegramMatch[0]}`);
         }
       }
     }
-    return 'Не указано';
+    
+    return contacts.length > 0 ? contacts.join('\n   ') : 'Не указано';
   }
 
   private generateShortSummary(history: Array<{role: 'user' | 'bot', message: string}>): string {
     // Находим основную проблему клиента
     let problems: string[] = [];
+    let businessInfo: string[] = [];
     
     for (let i = 0; i < history.length - 1; i++) {
       const botMessage = history[i];
       const userMessage = history[i + 1];
       
-      if (botMessage.role === 'bot' && userMessage.role === 'user' &&
-          (botMessage.message.includes('проблем') || 
-           botMessage.message.includes('вызов') ||
-           botMessage.message.includes('challenge') ||
-           botMessage.message.includes('problem'))) {
-        problems.push(userMessage.message);
+      if (botMessage.role === 'bot' && userMessage.role === 'user') {
+        // Ищем вопросы о проблемах
+        if (botMessage.message.includes('проблем') || 
+            botMessage.message.includes('вызов') ||
+            botMessage.message.includes('challenge') ||
+            botMessage.message.includes('problem') ||
+            botMessage.message.includes('трудност') ||
+            botMessage.message.includes('сложност')) {
+          problems.push(userMessage.message);
+        }
+        
+        // Ищем дополнительную информацию о бизнесе
+        if (botMessage.message.includes('клиент') || 
+            botMessage.message.includes('customer') ||
+            botMessage.message.includes('продаж') ||
+            botMessage.message.includes('sales')) {
+          businessInfo.push(userMessage.message);
+        }
       }
     }
     
+    let summary = '';
     if (problems.length > 0) {
-      return `Основная проблема: ${problems[0].substring(0, 100)}...`;
+      summary = `Проблема: ${problems[0].substring(0, 80)}`;
+    } else if (businessInfo.length > 0) {
+      summary = `Бизнес-контекст: ${businessInfo[0].substring(0, 80)}`;
+    } else {
+      summary = 'Заинтересован в AI чат-боте для бизнеса';
     }
     
-    return 'Заинтересован в AI чат-боте для бизнеса';
+    return summary;
   }
 
   async onModuleDestroy() {

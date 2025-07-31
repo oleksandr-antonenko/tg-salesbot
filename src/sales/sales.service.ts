@@ -17,6 +17,11 @@ interface ConversationSession {
     timeline?: string;
     contactInfo?: string;
   };
+  extractedContacts?: {
+    phone?: string;
+    email?: string;
+    telegram?: string;
+  };
 }
 
 interface ProcessMessageResponse {
@@ -103,6 +108,15 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
         updatedUserData.budget = extractedData.budget;
       }
 
+      // Обновляем извлеченные контакты
+      let updatedContacts = { ...session.extractedContacts };
+      if (extractedData.contactInfo) {
+        updatedContacts = {
+          ...updatedContacts,
+          ...extractedData.contactInfo
+        };
+      }
+
       // Умная логика перехода между стадиями SPIN на основе AI анализа
       updatedStage = this.determineNextStage(session.conversationStage, extractedData, leadScore, userMessage);
 
@@ -131,6 +145,7 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
           language,
           conversationStage: updatedStage,
           userData: updatedUserData,
+          extractedContacts: updatedContacts,
         },
         leadScore,
         extractedData,
@@ -203,6 +218,11 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
     hasName?: boolean;
     isPositiveResponse?: boolean;
     gavePermission?: boolean;
+    contactInfo?: {
+      phone?: string;
+      email?: string;
+      telegram?: string;
+    };
   }> {
     try {
       const analysisPrompt = `
@@ -219,7 +239,12 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
           "urgency": "low/medium/high based on language urgency",
           "hasName": true/false (ONLY TRUE if message contains a clear person's name like 'Меня зовут Александр' or 'My name is John'),
           "isPositiveResponse": true/false (ONLY TRUE for clear positive responses like 'да', 'хорошо', 'конечно', 'yes', 'sure', 'ok'),
-          "gavePermission": true/false (ONLY TRUE for explicit permission like 'да, можете', 'конечно, спрашивайте', 'yes, go ahead', 'sure, ask away')
+          "gavePermission": true/false (ONLY TRUE for explicit permission like 'да, можете', 'конечно, спрашивайте', 'yes, go ahead', 'sure, ask away'),
+          "contactInfo": {
+            "phone": "extracted phone number if found (e.g., +380977281466)",
+            "email": "extracted email if found",
+            "telegram": "extracted telegram username if found (e.g., @username)"
+          }
         }
         
         BE CONSERVATIVE: When in doubt, return false/null. Don't guess or infer.
@@ -390,10 +415,13 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
         return 'closing';
         
       case 'contact_collection':
-        // Переходим к завершению если получены контакты (телефон, email или любая контактная информация)
-        const hasContactInfo = /(\+?\d{10,15}|[\w\.-]+@[\w\.-]+\.\w+|@\w+)/i.test(userMessage);
-        if (hasContactInfo) {
-          this.logger.log('Stage transition: contact_collection -> conversation_completed (contacts received)');
+        // Переходим к завершению если получены новые контакты или уже есть сохраненные
+        const hasNewContactInfo = /(\+?\d{10,15}|[\w\.-]+@[\w\.-]+\.\w+|@\w+)/i.test(userMessage);
+        const hasStoredContacts = extractedData.contactInfo && 
+          (extractedData.contactInfo.phone || extractedData.contactInfo.email || extractedData.contactInfo.telegram);
+        
+        if (hasNewContactInfo || hasStoredContacts) {
+          this.logger.log('Stage transition: contact_collection -> conversation_completed (contacts available)');
           return 'conversation_completed';
         }
         return 'contact_collection';
