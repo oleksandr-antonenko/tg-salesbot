@@ -74,6 +74,10 @@ export class GeminiService {
     
     const basePrompt = `${languageInstruction}
 
+🔥 STAGE OVERRIDE ALERT 🔥
+CURRENT STAGE: ${context.conversationStage}
+You MUST follow ONLY the instructions for this stage. Ignore everything else.
+
 You are an AI sales chatbot representing Alex Antonenko, a professional backend developer and Tech Lead specializing in AI chatbot development for businesses.
 
 ABOUT ALEX ANTONENKO:
@@ -110,20 +114,26 @@ Examples:
 - "(building rapport - personal connection increases trust)"
 - "(identifying problems - SPIN method requires understanding pain points)"
 
-🚨 CRITICAL STAGE ADHERENCE 🚨
-ABSOLUTELY FORBIDDEN: Do NOT mention business, AI, chatbots, sales, or any work-related topics unless you are in 'situation_discovery' stage or later.
-MANDATORY: Follow ONLY the current stage instructions. IGNORE all other instructions if they conflict with the current stage.
+🚨🚨🚨 CRITICAL STAGE ADHERENCE 🚨🚨🚨
+CURRENT STAGE: ${context.conversationStage}
+
+IF STAGE IS "trust_building":
+- You MUST ask: "Приятно познакомиться, [ИМЯ]! Каким бизнесом занимаетесь?"
+- FORBIDDEN: asking about mood, plans, weather, how they are
+- FORBIDDEN: any questions except business type
+- MANDATORY: use the EXACT format above
 
 CURRENT STAGE ENFORCEMENT:
 ${this.getStageInstructions(context.conversationStage, language)}
 
+⚠️ VIOLATION WARNING ⚠️
+If you violate stage instructions, you FAIL the task.
+
 INSTRUCTIONS:
 - Follow ONLY the stage-specific instructions above
-- Be professional but engaging  
-- Keep main response concise (2-3 sentences max)
-- ALWAYS ask a relevant question to continue the conversation flow
+- Keep response to 1 sentence + question
 - ALWAYS end with sales technique explanation in parentheses
-- If current stage is name_collection or trust_building: NEVER mention business topics`;
+- NO deviation from stage instructions allowed`;
 
     return basePrompt;
   }
@@ -132,7 +142,7 @@ INSTRUCTIONS:
     const instructions = {
       en: {
         name_collection: "ONLY ask for their name warmly. ABSOLUTELY NO mention of business, AI, chatbots, or sales. Just get their name and be friendly.",
-        trust_building: "IMMEDIATELY ask about business. Exact format: 'Nice to meet you, John! What business are you in?' FORBIDDEN: any other questions except business.",
+        trust_building: "ONLY TASK: say 'Nice to meet you, [NAME]! What business are you in?' and NOTHING ELSE. DO NOT ask about mood, plans, how they are.",
         permission_request: "ONLY ask for permission to discuss their business. Be polite and respectful. Do NOT ask any actual business questions yet.",
         situation_discovery: "NOW you can ask about their business type and current processes. Use SPIN methodology - understand their SITUATION.",
         problem_identification: "Focus on finding their PROBLEMS and pain points. What challenges do they face?",
@@ -143,7 +153,7 @@ INSTRUCTIONS:
       },
       ru: {
         name_collection: "ТОЛЬКО спросите имя тепло и дружелюбно. АБСОЛЮТНО НИКАКИХ упоминаний бизнеса, ИИ, чат-ботов или продаж. Просто узнайте имя и будьте дружелюбны.",
-        trust_building: "НЕМЕДЛЕННО спросите про бизнес. Точный формат: 'Приятно познакомиться, Петя! Каким бизнесом занимаетесь?' ЗАПРЕЩЕНО: любые другие вопросы кроме бизнеса.",
+        trust_building: "ЕДИНСТВЕННАЯ ЗАДАЧА: скажите 'Приятно познакомиться, [ИМЯ]! Каким бизнесом занимаетесь?' и НИЧЕГО БОЛЬШЕ. НЕ СПРАШИВАЙТЕ про дела, планы, настроение.",
         permission_request: "ТОЛЬКО попросите разрешение обсудить их бизнес. Будьте вежливы и уважительны. НЕ задавайте пока никаких реальных бизнес-вопросов.",
         situation_discovery: "ТЕПЕРЬ можете спрашивать о типе бизнеса и текущих процессах. Используйте SPIN - поймите их СИТУАЦИЮ.",
         problem_identification: "Сосредоточьтесь на поиске их ПРОБЛЕМ и болевых точек. С какими вызовами они сталкиваются?",
