@@ -80,11 +80,13 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
   ): Promise<ProcessMessageResponse> {
     try {
       const language = session.language;
-      this.logger.log(`Processing message in language: "${language}" for stage: "${session.conversationStage}"`);
+      this.logger.log(`Processing message: "${userMessage}" | Stage: "${session.conversationStage}" | Language: "${language}"`);
       
       // Анализируем сообщение для извлечения данных
       const extractedData = await this.analyzeUserMessage(userMessage, language);
       const leadScore = this.calculateLeadScore(userMessage, session, extractedData);
+      
+      this.logger.log(`AI Analysis: ${JSON.stringify(extractedData)} | Lead Score: ${leadScore}`);
       
       let updatedStage = session.conversationStage;
       const updatedUserData = { ...session.userData };
@@ -202,19 +204,23 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
   }> {
     try {
       const analysisPrompt = `
-        Analyze this user message and extract information:
+        Analyze this user message VERY CAREFULLY and extract information:
         "${message}"
+        
+        Be EXTREMELY CONSERVATIVE in your analysis. Only return true for fields when you are 100% certain.
         
         Return a JSON object with extracted data:
         {
-          "businessType": "if mentioned (e.g., restaurant, shop, salon, etc.)",
-          "challenges": "business problems mentioned",
-          "budget": "any budget/money concerns mentioned",
+          "businessType": "only if explicitly mentioned business type (e.g., restaurant, shop, salon, etc.)",
+          "challenges": "only if explicit business problems mentioned", 
+          "budget": "only if explicit budget/money concerns mentioned",
           "urgency": "low/medium/high based on language urgency",
-          "hasName": true/false if message contains a person's name,
-          "isPositiveResponse": true/false if user responds positively/friendly,
-          "gavePermission": true/false if user gives permission to ask questions
+          "hasName": true/false (ONLY TRUE if message contains a clear person's name like 'Меня зовут Александр' or 'My name is John'),
+          "isPositiveResponse": true/false (ONLY TRUE for clear positive responses like 'да', 'хорошо', 'конечно', 'yes', 'sure', 'ok'),
+          "gavePermission": true/false (ONLY TRUE for explicit permission like 'да, можете', 'конечно, спрашивайте', 'yes, go ahead', 'sure, ask away')
         }
+        
+        BE CONSERVATIVE: When in doubt, return false/null. Don't guess or infer.
         
         Respond ONLY with valid JSON, no other text.
       `;
@@ -222,7 +228,10 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
       const response = await this.geminiService.generateResponse(analysisPrompt);
       const cleanResponse = response.replace(/```json|```/g, '').trim();
       
-      return JSON.parse(cleanResponse);
+      const result = JSON.parse(cleanResponse);
+      this.logger.log(`AI Analysis result: ${JSON.stringify(result)}`);
+      
+      return result;
     } catch (error) {
       this.logger.warn('Failed to analyze user message:', error);
       return {};
@@ -285,46 +294,76 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
     leadScore: number,
     userMessage: string
   ): string {
-    // Если lead score низкий, остаемся на текущей стадии для дополнительного выяснения
-    if (leadScore < 3 && currentStage !== 'greeting') {
-      return currentStage;
-    }
+    this.logger.log(`Stage transition analysis: ${currentStage} -> extractedData: ${JSON.stringify(extractedData)} -> leadScore: ${leadScore}`);
     
     switch (currentStage) {
       case 'greeting':
         return 'name_collection';
         
       case 'name_collection':
-        // Переходим к установлению доверия если AI извлек имя или позитивная реакция
-        return extractedData.hasName || extractedData.isPositiveResponse || leadScore >= 2 ? 'trust_building' : 'name_collection';
+        // Переходим только если четко извлекли имя
+        if (extractedData.hasName) {
+          this.logger.log('Stage transition: name_collection -> trust_building (name detected)');
+          return 'trust_building';
+        }
+        // Остаемся на сборе имени
+        return 'name_collection';
         
       case 'trust_building':
-        // После установления доверия просим разрешение на вопросы
-        return extractedData.isPositiveResponse || leadScore >= 2 ? 'permission_request' : 'trust_building';
+        // Переходим только при явно позитивной реакции
+        if (extractedData.isPositiveResponse && leadScore >= 3) {
+          this.logger.log('Stage transition: trust_building -> permission_request (positive response)');
+          return 'permission_request';
+        }
+        return 'trust_building';
         
       case 'permission_request':
-        // Переходим к ситуации только после получения разрешения по AI анализу
-        return extractedData.gavePermission || leadScore >= 3 ? 'situation_discovery' : 'permission_request';
+        // Переходим только при явном разрешении
+        if (extractedData.gavePermission) {
+          this.logger.log('Stage transition: permission_request -> situation_discovery (permission granted)');
+          return 'situation_discovery';
+        }
+        return 'permission_request';
         
       case 'situation_discovery':
-        // Переходим к проблемам если AI извлек информацию о бизнесе или достаточный lead score
-        return extractedData.businessType || leadScore >= 4 ? 'problem_identification' : 'situation_discovery';
+        // Переходим только если четко извлек тип бизнеса
+        if (extractedData.businessType && leadScore >= 5) {
+          this.logger.log('Stage transition: situation_discovery -> problem_identification (business type extracted)');
+          return 'problem_identification';
+        }
+        return 'situation_discovery';
         
       case 'problem_identification':
-        // Переходим к последствиям если AI извлек проблемы или достаточный lead score
-        return extractedData.challenges || leadScore >= 5 ? 'implication_development' : 'problem_identification';
+        // Переходим только если четко извлек проблемы
+        if (extractedData.challenges && leadScore >= 6) {
+          this.logger.log('Stage transition: problem_identification -> implication_development (challenges extracted)');
+          return 'implication_development';
+        }
+        return 'problem_identification';
         
       case 'implication_development':
-        // Переходим к выгодам если lead score достаточно высокий
-        return leadScore >= 6 ? 'need_payoff' : 'implication_development';
+        // Переходим только при высоком engagement
+        if (leadScore >= 7) {
+          this.logger.log('Stage transition: implication_development -> need_payoff (high engagement)');
+          return 'need_payoff';
+        }
+        return 'implication_development';
         
       case 'need_payoff':
-        // Переходим к предложению если есть интерес (высокий lead score)
-        return leadScore >= 7 ? 'proposal' : 'need_payoff';
+        // Переходим к предложению при очень высоком интересе
+        if (leadScore >= 8) {
+          this.logger.log('Stage transition: need_payoff -> proposal (very high interest)');
+          return 'proposal';
+        }
+        return 'need_payoff';
         
       case 'proposal':
-        // Переходим к закрытию если есть сильный интерес
-        return leadScore >= 8 ? 'closing' : 'proposal';
+        // Переходим к закрытию при максимальном интересе
+        if (leadScore >= 9) {
+          this.logger.log('Stage transition: proposal -> closing (maximum interest)');
+          return 'closing';
+        }
+        return 'proposal';
         
       case 'closing':
         return 'closing'; // Остаемся на закрытии
