@@ -7,7 +7,7 @@ import { createGermanPack } from './languages/de';
 // Language pack creators registry
 const languageCreators: Record<string, () => LanguagePack> = {
   en: createEnglishPack,
-  ru: createRussianPack,
+  // ru: createRussianPack,
   uk: createUkrainianPack,
   de: createGermanPack,
 };
@@ -43,7 +43,7 @@ export function generateWelcomeText(): string {
   const languages = getAvailableLanguages();
   const welcomeTexts: Record<string, string> = {
     en: 'Welcome! Please choose your preferred language:',
-    ru: 'Добро пожаловать! Выберите предпочитаемый язык:',
+    // ru: 'Добро пожаловать! Выберите предпочитаемый язык:',
     uk: 'Ласкаво просимо! Оберіть бажану мову:',
     de: 'Willkommen! Bitte wählen Sie Ihre bevorzugte Sprache:',
   };
