@@ -209,10 +209,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             inline_keyboard: [
               [
                 { text: '🇺🇸 English', callback_data: 'lang_en' },
-                { text: '🇷🇺 Русский', callback_data: 'lang_ru' },
-              ],
-              [
                 { text: '🇺🇦 Українська', callback_data: 'lang_uk' },
+                { text: '🇷🇺 Русский', callback_data: 'lang_ru' },
               ],
             ],
           },
