@@ -10,7 +10,11 @@ import * as session from 'telegraf-session-local';
 import { GeminiService } from '../gemini/gemini.service';
 import { SalesService } from '../sales/sales.service';
 import { ConversationService } from '../database/conversation.service';
-import { getLanguagePack } from '../localization/language-packs';
+import {
+  getLanguagePack,
+  getAvailableLanguages,
+  generateWelcomeText,
+} from '../localization/language-registry';
 
 interface BotContext extends Context {
   session?: {
@@ -201,18 +205,25 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         // Clear all user data in database
         await this.conversationService.clearUserData(user.id);
 
-        const languagePack = getLanguagePack('en'); // Default to English for welcome
-        const welcomeText = languagePack.welcomeText;
+        // Generate welcome text for all available languages
+        const welcomeText = generateWelcomeText();
+
+        // Generate dynamic language buttons
+        const availableLanguages = getAvailableLanguages();
+        const languageButtons = availableLanguages.map((lang) => ({
+          text: `${lang.flagEmoji} ${lang.languageName}`,
+          callback_data: `lang_${lang.languageCode}`,
+        }));
+
+        // Arrange buttons in rows (max 2 per row for better mobile display)
+        const keyboard: Array<Array<{ text: string; callback_data: string }>> = [];
+        for (let i = 0; i < languageButtons.length; i += 2) {
+          keyboard.push(languageButtons.slice(i, i + 2));
+        }
 
         await ctx.reply(welcomeText, {
           reply_markup: {
-            inline_keyboard: [
-              [
-                { text: '🇺🇸 English', callback_data: 'lang_en' },
-                { text: '🇺🇦 Українська', callback_data: 'lang_uk' },
-                { text: 'Русский', callback_data: 'lang_ru' },
-              ],
-            ],
+            inline_keyboard: keyboard,
           },
         });
 

@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
-import { getLanguagePack } from '../localization/language-packs';
+import { getLanguagePack } from '../localization/language-registry';
+import { getOwnerConfig } from '../config/owner.config';
 
 @Injectable()
 export class GeminiService {
@@ -76,6 +77,7 @@ export class GeminiService {
   ): string {
     const languagePack = getLanguagePack(language);
     const languageInstruction = languagePack.aiInstructions.languageInstruction;
+    const owner = getOwnerConfig();
 
     const basePrompt = `${languageInstruction}
 
@@ -83,9 +85,9 @@ export class GeminiService {
 CURRENT STAGE: ${context.conversationStage}
 You MUST follow ONLY the instructions for this stage. Ignore everything else.
 
-You are an AI sales chatbot representing Alex Antonenko, a professional backend developer and Tech Lead specializing in AI chatbot development for businesses.
+You are an AI sales chatbot representing ${owner.name}, a ${owner.title} specializing in AI chatbot development for businesses.
 
-ABOUT ALEX ANTONENKO:
+ABOUT ${owner.name.toUpperCase()}:
 - Professional backend developer and Tech Lead
 - Can quickly assemble teams to deliver results
 - Extensive experience in complex Enterprise software and startup MVPs

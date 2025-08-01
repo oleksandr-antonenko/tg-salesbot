@@ -6,7 +6,7 @@ A sophisticated Telegram chatbot built with NestJS that demonstrates AI-powered 
 
 - 🤖 **AI-Powered Conversations**: Uses Google Gemini AI for intelligent responses
 - 🎯 **Sales Techniques**: Implements SPIN selling and AIDA framework
-- 🌍 **Multi-Language Support**: Supports English, Russian, and Ukrainian languages
+- 🌍 **Multi-Language Support**: Supports English, Russian, Ukrainian, and German with automatic menu generation
 - 📊 **Conversation Management**: Tracks user data and conversation stages
 - 🚀 **Built with NestJS**: Modern, scalable architecture
 
@@ -91,8 +91,77 @@ src/
 ├── telegram/          # Telegram bot service and handlers
 ├── gemini/            # Google Gemini AI integration
 ├── sales/             # Sales conversation logic and SPIN/AIDA
+├── localization/      # Multi-language support and language packs
+├── config/            # Owner configuration and settings
+├── database/          # Database entities and services
 └── app.module.ts      # Main application module
 ```
+
+## Customization
+
+### Owner Configuration
+
+You can customize the bot owner information by editing `/src/config/owner.config.ts`:
+
+```typescript
+export const ownerConfig: OwnerConfig = {
+  name: 'Your Full Name',
+  shortName: 'Your Name',
+  telegramHandle: '@your_telegram_handle',
+  title: 'Your Professional Title',
+  bio: {
+    en: 'Your bio in English...',
+    ru: 'Ваша биография на русском...',
+    uk: 'Ваша біографія українською...',
+  },
+};
+```
+
+This will automatically update:
+- Welcome messages in all languages
+- AI assistant personality and responses  
+- Contact information in conversations
+- Lead notifications
+
+### Adding New Languages
+
+To add a new language (e.g., French):
+
+1. **Create language pack**: `/src/localization/languages/fr.ts`
+```typescript
+import { LanguagePack } from '../types';
+import { getOwnerConfig } from '../../config/owner.config';
+
+export function createFrenchPack(): LanguagePack {
+  const owner = getOwnerConfig();
+  return {
+    languageCode: 'fr',
+    languageName: 'Français', 
+    flagEmoji: '🇫🇷',
+    // ... rest of translations
+  };
+}
+```
+
+2. **Add to registry**: `/src/localization/language-registry.ts`
+```typescript
+import { createFrenchPack } from './languages/fr';
+
+const languageCreators: Record<string, () => LanguagePack> = {
+  // existing languages...
+  fr: createFrenchPack,
+};
+```
+
+3. **Update owner bio**: Add French bio to `/src/config/owner.config.ts`
+```typescript
+bio: {
+  // existing languages...
+  fr: 'Votre biographie en français...',
+}
+```
+
+The language will **automatically appear** in the Telegram menu! ✨
 
 ## Development
 

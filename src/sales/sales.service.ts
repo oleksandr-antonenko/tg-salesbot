@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { GeminiService } from '../gemini/gemini.service';
 import { ConversationService } from '../database/conversation.service';
-import { getLanguagePack } from '../localization/language-packs';
+import { getLanguagePack } from '../localization/language-registry';
 import * as langdetect from 'langdetect';
 
 interface ConversationSession {
