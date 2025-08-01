@@ -7,7 +7,7 @@ export function createRussianPack(): LanguagePack {
   return {
     languageCode: 'ru',
     languageName: 'Русский',
-    flagEmoji: '🇷🇺',
+    flagEmoji: '',
 
     languageSelected: 'Язык выбран!',
     welcomeMessage: `🤖 Привет! Я ИИ-помощник ${owner.shortName}а, готов показать, как чат-боты могут революционизировать продажи бизнеса!
