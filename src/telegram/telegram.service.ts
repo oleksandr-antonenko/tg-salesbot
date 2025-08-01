@@ -210,8 +210,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
               [
                 { text: '🇺🇸 English', callback_data: 'lang_en' },
                 { text: '🇺🇦 Українська', callback_data: 'lang_uk' },
+                { text: 'Русский', callback_data: 'lang_ru' },
               ],
-              [{ text: 'Русский', callback_data: 'lang_ru' }],
             ],
           },
         });
