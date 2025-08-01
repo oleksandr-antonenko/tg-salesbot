@@ -1,4 +1,9 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Telegraf, Context } from 'telegraf';
 import * as session from 'telegraf-session-local';
@@ -9,7 +14,8 @@ import { ConversationService } from '../database/conversation.service';
 interface BotContext extends Context {
   session?: {
     userId: string;
-    userName?: string;
+    userName?: string; // Telegram username
+    userProvidedName?: string; // Name provided by user
     language: string;
     conversationStage: string;
     conversationId?: number;
@@ -53,20 +59,21 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     this.setupHandlers();
 
     try {
-      // Сначала пытаемся остановить предыдущие webhook/polling
+      // First try to stop previous webhook/polling
       await this.bot.telegram.deleteWebhook();
-      
+
       await this.bot.launch();
       this.logger.log('Telegram bot started successfully');
-      
+
       // Graceful shutdown
       process.once('SIGINT', () => this.bot.stop('SIGINT'));
       process.once('SIGTERM', () => this.bot.stop('SIGTERM'));
-      
     } catch (error) {
       if (error.response?.error_code === 409) {
-        this.logger.error('Bot conflict detected. Another instance might be running. Waiting and retrying...');
-        // Ждем 5 секунд и пытаемся снова
+        this.logger.error(
+          'Bot conflict detected. Another instance might be running. Waiting and retrying...',
+        );
+        // Wait 5 seconds and try again
         setTimeout(async () => {
           try {
             await this.bot.launch();
@@ -83,18 +90,22 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
   private setupMiddleware() {
     // Use persistent local session storage
-    this.bot.use(new session({
-      database: 'sessions.json',
-      property: 'session',
-      storage: session.storageFileAsync,
-      getSessionKey: (ctx) => {
-        return ctx.from && ctx.chat ? `${ctx.from.id}:${ctx.chat.id}` : 'unknown';
-      },
-      format: {
-        serialize: (obj) => JSON.stringify(obj, null, 2),
-        deserialize: (str) => JSON.parse(str),
-      },
-    }));
+    this.bot.use(
+      new session({
+        database: 'sessions.json',
+        property: 'session',
+        storage: session.storageFileAsync,
+        getSessionKey: (ctx) => {
+          return ctx.from && ctx.chat
+            ? `${ctx.from.id}:${ctx.chat.id}`
+            : 'unknown';
+        },
+        format: {
+          serialize: (obj) => JSON.stringify(obj, null, 2),
+          deserialize: (str) => JSON.parse(str),
+        },
+      }),
+    );
 
     this.bot.use(async (ctx, next) => {
       try {
@@ -104,13 +115,16 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         const lastName = ctx.from?.last_name;
 
         if (!ctx.session || !ctx.session.dbUserId) {
-          // Находим или создаем пользователя в базе данных
-          const user = await this.conversationService.findOrCreateUser(telegramId, {
-            username: userName,
-            firstName,
-            lastName,
-            language: ctx.from?.language_code || 'en',
-          });
+          // Find or create user in database
+          const user = await this.conversationService.findOrCreateUser(
+            telegramId,
+            {
+              username: userName,
+              firstName,
+              lastName,
+              language: ctx.from?.language_code || 'en',
+            },
+          );
 
           ctx.session = {
             userId: telegramId,
@@ -139,25 +153,28 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   private setupHandlers() {
     this.bot.start(async (ctx) => {
       try {
-        // ВСЕГДА создаем новую сессию при /start
+        // ALWAYS create new session on /start
         const telegramId = ctx.from?.id.toString() || 'unknown';
         const userName = ctx.from?.username || ctx.from?.first_name;
         const firstName = ctx.from?.first_name;
         const lastName = ctx.from?.last_name;
 
-        // Находим или создаем пользователя в базе данных
-        const user = await this.conversationService.findOrCreateUser(telegramId, {
-          username: userName,
-          firstName,
-          lastName,
-          language: ctx.from?.language_code || 'en',
-        });
+        // Find or create user in database
+        const user = await this.conversationService.findOrCreateUser(
+          telegramId,
+          {
+            username: userName,
+            firstName,
+            lastName,
+            language: ctx.from?.language_code || 'en',
+          },
+        );
 
-        // Полностью очищаем и пересоздаем сессию
+        // Completely clear and recreate session
         ctx.session = {
           userId: telegramId,
           userName,
-          language: 'en', // Всегда начинаем с выбора языка
+          language: 'en', // Always start with language selection
           conversationStage: 'language_selection',
           dbUserId: user.id,
           userData: {
@@ -169,77 +186,83 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           },
         };
 
-        // Создаем новый разговор в базе данных
-        const conversation = await this.conversationService.startConversation(user.id);
+        // Create new conversation in database
+        const conversation = await this.conversationService.startConversation(
+          user.id,
+        );
         ctx.session.conversationId = conversation.id;
-        
-        // Очищаем все данные пользователя в базе данных
+
+        // Clear all user data in database
         await this.conversationService.clearUserData(user.id);
-        
-        const welcomeText = 'Welcome! Please choose your preferred language:\nДобро пожаловать! Выберите предпочитаемый язык:';
-        
+
+        const welcomeText =
+          'Welcome! Please choose your preferred language:\nДобро пожаловать! Выберите предпочитаемый язык:';
+
         await ctx.reply(welcomeText, {
           reply_markup: {
             inline_keyboard: [
               [
                 { text: '🇺🇸 English', callback_data: 'lang_en' },
-                { text: '🇷🇺 Русский', callback_data: 'lang_ru' }
-              ]
-            ]
-          }
+                { text: '🇷🇺 Русский', callback_data: 'lang_ru' },
+              ],
+            ],
+          },
         });
 
-        // Логируем начало новой сессии
+        // Log start of new session
         await this.conversationService.logMessage(
           conversation.id,
           'bot',
           welcomeText,
-          'language_selection'
+          'language_selection',
         );
 
         this.logger.log(`New session started for user: ${telegramId}`);
       } catch (error) {
         this.logger.error('Error starting new session:', error);
-        await ctx.reply('Sorry, there was an error starting a new session. Please try again.');
+        await ctx.reply(
+          'Sorry, there was an error starting a new session. Please try again.',
+        );
       }
     });
 
     this.bot.action(/^lang_(.+)$/, async (ctx) => {
       if (!ctx.session) return;
-      
+
       const selectedLanguage = ctx.match[1];
       ctx.session.language = selectedLanguage;
       ctx.session.conversationStage = 'name_collection';
-      
-      // Обновляем язык и стадию в базе данных
+
+      // Update language and stage in database
       if (ctx.session.dbUserId) {
         await this.conversationService.updateUserData(ctx.session.dbUserId, {
           language: selectedLanguage,
-          conversationStage: 'name_collection'
+          conversationStage: 'name_collection',
         });
       }
-      
+
       await ctx.answerCbQuery();
       const confirmText = 'Language selected! / Язык выбран!';
       await ctx.editMessageText(confirmText);
-      
-      const welcomeMessage = await this.salesService.generateWelcomeMessage(selectedLanguage);
+
+      const welcomeMessage =
+        await this.salesService.generateWelcomeMessage(selectedLanguage);
       await ctx.reply(welcomeMessage);
 
-      // Логируем выбор языка и приветственное сообщение
+      // Log language selection and welcome message
       if (ctx.session.conversationId) {
         await this.conversationService.logMessage(
           ctx.session.conversationId,
           'user',
           `Selected language: ${selectedLanguage}`,
-          'language_selection'
+          'language_selection',
         );
-        
+
         await this.conversationService.logMessage(
           ctx.session.conversationId,
           'bot',
           welcomeMessage,
-          'name_collection'
+          'name_collection',
         );
       }
     });
@@ -247,36 +270,45 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     this.bot.on('text', async (ctx) => {
       try {
         if (!ctx.session || !ctx.session.conversationId) return;
-        
+
         // Skip processing if still in language selection stage
         if (ctx.session.conversationStage === 'language_selection') {
           return;
         }
 
         const userMessage = ctx.message.text;
-        this.logger.log(`Processing message: "${userMessage}" in language: "${ctx.session.language}"`);
-        
-        // Логируем сообщение пользователя
+        this.logger.log(
+          `Processing message: "${userMessage}" in language: "${ctx.session.language}"`,
+        );
+
+        // Log user message
         await this.conversationService.logMessage(
           ctx.session.conversationId,
           'user',
           userMessage,
-          ctx.session.conversationStage
+          ctx.session.conversationStage,
         );
-        
-        // Получаем историю разговора для контекста (последние 10 сообщений)
-        let conversationHistory: Array<{role: 'user' | 'bot', message: string}> = [];
+
+        // Get conversation history for context (last 10 messages)
+        let conversationHistory: Array<{
+          role: 'user' | 'bot';
+          message: string;
+        }> = [];
         if (ctx.session.dbUserId) {
-          const conversation = await this.conversationService.getCurrentConversation(ctx.session.dbUserId);
-          conversationHistory = conversation?.messages
-            ?.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
-            ?.slice(-10) // Последние 10 сообщений
-            ?.map(msg => ({
-              role: msg.messageType as 'user' | 'bot',
-              message: msg.content
-            })) || [];
+          const conversation =
+            await this.conversationService.getCurrentConversation(
+              ctx.session.dbUserId,
+            );
+          conversationHistory =
+            conversation?.messages
+              ?.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+              ?.slice(-10) // Last 10 messages
+              ?.map((msg) => ({
+                role: msg.messageType as 'user' | 'bot',
+                message: msg.content,
+              })) || [];
         }
-        
+
         const response = await this.salesService.processMessage(
           userMessage,
           ctx.session,
@@ -285,73 +317,87 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
         await ctx.reply(response.message);
 
-        // Логируем ответ бота с lead score
+        // Log bot response with lead score
         await this.conversationService.logMessage(
           ctx.session.conversationId,
           'bot',
           response.message,
-          response.updatedSession?.conversationStage || ctx.session.conversationStage,
+          response.updatedSession?.conversationStage ||
+            ctx.session.conversationStage,
           'gemini-2.0-flash',
-          { 
+          {
             userData: ctx.session.userData,
             leadScore: response.leadScore,
-            extractedData: response.extractedData
-          }
+            extractedData: response.extractedData,
+          },
         );
 
         if (response.updatedSession) {
           Object.assign(ctx.session, response.updatedSession);
-          
-          // Обновляем данные пользователя в базе данных
+
+          // Update user data in database
           if (ctx.session.dbUserId) {
-            await this.conversationService.updateUserData(ctx.session.dbUserId, {
-              businessType: ctx.session.userData.businessType,
-              currentChallenges: ctx.session.userData.currentChallenges,
-              budget: ctx.session.userData.budget,
-              timeline: ctx.session.userData.timeline,
-              contactInfo: ctx.session.userData.contactInfo,
-              conversationStage: ctx.session.conversationStage,
-            });
+            await this.conversationService.updateUserData(
+              ctx.session.dbUserId,
+              {
+                businessType: ctx.session.userData.businessType,
+                currentChallenges: ctx.session.userData.currentChallenges,
+                budget: ctx.session.userData.budget,
+                timeline: ctx.session.userData.timeline,
+                contactInfo: ctx.session.userData.contactInfo,
+                conversationStage: ctx.session.conversationStage,
+              },
+            );
           }
 
-          // Обновляем стадию разговора
+          // Update conversation stage
           await this.conversationService.updateConversationStage(
             ctx.session.conversationId,
-            ctx.session.conversationStage
+            ctx.session.conversationStage,
           );
 
-          // Если достигли стадии conversation_completed - помечаем как завершенный лид
+          // If reached conversation_completed stage - mark as completed lead
           if (ctx.session.conversationStage === 'conversation_completed') {
             await this.conversationService.completeConversation(
               ctx.session.conversationId,
               true, // leadGenerated
-              10 // максимальный score за завершенную сделку
+              10, // maximum score for completed deal
             );
-            
-            // Отправляем уведомление Алексу о новом лиде
+
+            // Send lead notification to Alex
             await this.sendLeadNotification(ctx.session, conversationHistory);
-            
-            this.logger.log(`CONVERSATION COMPLETED! Contact info collected. User: ${ctx.session.userId}`);
+
+            this.logger.log(
+              `CONVERSATION COMPLETED! Contact info collected. User: ${ctx.session.userId}`,
+            );
           }
-          // Если достигли стадии contact_collection - помечаем как качественный лид
+          // If reached contact_collection stage - mark as quality lead
           else if (ctx.session.conversationStage === 'contact_collection') {
             await this.conversationService.completeConversation(
               ctx.session.conversationId,
               true, // leadGenerated
-              response.leadScore || 9 // высокий score за согласие
+              response.leadScore || 9, // high score for agreement
             );
-            
-            this.logger.log(`DEAL CLOSED! Lead ready for handoff. User: ${ctx.session.userId}, Score: ${response.leadScore || 9}`);
+
+            this.logger.log(
+              `DEAL CLOSED! Lead ready for handoff. User: ${ctx.session.userId}, Score: ${response.leadScore || 9}`,
+            );
           }
-          // Если достигли стадии closing и lead score высокий - помечаем как лид
-          else if (ctx.session.conversationStage === 'closing' && response.leadScore && response.leadScore >= 7) {
+          // If reached closing stage and lead score is high - mark as lead
+          else if (
+            ctx.session.conversationStage === 'closing' &&
+            response.leadScore &&
+            response.leadScore >= 7
+          ) {
             await this.conversationService.completeConversation(
               ctx.session.conversationId,
               true, // leadGenerated
-              response.leadScore
+              response.leadScore,
             );
-            
-            this.logger.log(`High-quality lead generated! Score: ${response.leadScore}, User: ${ctx.session.userId}`);
+
+            this.logger.log(
+              `High-quality lead generated! Score: ${response.leadScore}, User: ${ctx.session.userId}`,
+            );
           }
         }
       } catch (error) {
@@ -362,13 +408,13 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             : 'Sorry, an error occurred. Please try again.';
         await ctx.reply(errorMessage);
 
-        // Логируем ошибку
+        // Log error
         if (ctx.session?.conversationId) {
           await this.conversationService.logMessage(
             ctx.session.conversationId,
             'bot',
             errorMessage,
-            ctx.session.conversationStage
+            ctx.session.conversationStage,
           );
         }
       }
@@ -387,77 +433,112 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async sendLeadNotification(session: any, conversationHistory: Array<{role: 'user' | 'bot', message: string}>): Promise<void> {
+  private async sendLeadNotification(
+    session: any,
+    conversationHistory: Array<{
+      role: 'user' | 'bot';
+      message: string;
+    }>,
+  ): Promise<void> {
     try {
-      // Извлекаем информацию из сессии и истории разговора
-      const userName = session.userName || 'Неизвестно';
-      const businessType = session.userData?.businessType || this.extractBusinessFromHistory(conversationHistory);
-      const contactInfo = this.formatExtractedContacts(session.extractedContacts) || this.extractContactFromHistory(conversationHistory);
-      const summary = this.generateShortSummary(conversationHistory);
+      // Extract information from session and conversation history
+      const telegramUsername = session.userName || 'Unknown';
+      const providedName = session.userProvidedName;
+      const businessType =
+        session.userData?.businessType ||
+        this.extractBusinessFromHistory(conversationHistory);
+      const contactInfo =
+        this.formatExtractedContacts(session.extractedContacts) ||
+        this.extractContactFromHistory(conversationHistory);
+      const summary = await this.generateShortSummary(conversationHistory);
 
-      const leadMessage = `🎯 НОВЫЙ ЛИД!
+      // Format names
+      let nameSection = '';
+      if (providedName && providedName !== telegramUsername) {
+        nameSection = `${providedName} (@${telegramUsername})`;
+      } else {
+        nameSection = telegramUsername;
+      }
 
-1. **Имя и контакт:**
-   ${userName}
+      const leadMessage = `🎯 NEW LEAD!
+
+1. **Name and Contact:**
+   ${nameSection}
    ${contactInfo}
 
-2. **Сфера бизнеса:**
+2. **Business Sector:**
    ${businessType}
 
-3. **Резюме:**
+3. **Summary:**
    ${summary}
 
-📊 Lead Score: 10/10 (Сделка закрыта)`;
+📊 Lead Score: 10/10 (Deal Closed)`;
 
-      // Отправляем Алексу - используем его chat ID из конфигурации
-      const alexChatId = this.configService.get<string>('ALEX_CHAT_ID') as string ; // Ваш chat ID
+      // Send to Alex - use his chat ID from configuration
+      const alexChatId = this.configService.get<string>(
+        'OWNER_CHAT_ID',
+      ) as string; // Your chat ID
       await this.bot.telegram.sendMessage(alexChatId, leadMessage);
 
-      this.logger.log(`Lead notification sent to Alex for user: ${session.userId}`);
+      this.logger.log(
+        `Lead notification sent to Alex for user: ${session.userId}`,
+      );
     } catch (error) {
       this.logger.error('Error sending lead notification:', error);
     }
   }
 
-  private extractBusinessFromHistory(history: Array<{role: 'user' | 'bot', message: string}>): string {
-    // Ищем ответ пользователя на вопрос о бизнесе
+  private extractBusinessFromHistory(
+    history: Array<{ role: 'user' | 'bot'; message: string }>,
+  ): string {
+    // Look for user's response to business question
     for (let i = 0; i < history.length - 1; i++) {
       const botMessage = history[i];
       const userMessage = history[i + 1];
-      
-      if (botMessage.role === 'bot' && 
-          (botMessage.message.includes('бизнесом занимаетесь') || 
-           botMessage.message.includes('business are you in')) &&
-          userMessage.role === 'user') {
+
+      if (
+        botMessage.role === 'bot' &&
+        (botMessage.message.includes('бизнесом занимаетесь') ||
+          botMessage.message.includes('business are you in')) &&
+        userMessage.role === 'user'
+      ) {
         return userMessage.message;
       }
     }
-    return 'Не указано';
+    return 'Not specified';
   }
 
-  private formatExtractedContacts(contacts?: { phone?: string; email?: string; telegram?: string }): string | null {
+  private formatExtractedContacts(contacts?: {
+    phone?: string;
+    email?: string;
+    telegram?: string;
+  }): string | null {
     if (!contacts) return null;
-    
+
     const contactList: string[] = [];
     if (contacts.phone) contactList.push(`📞 ${contacts.phone}`);
     if (contacts.email) contactList.push(`📧 ${contacts.email}`);
     if (contacts.telegram) contactList.push(`💬 ${contacts.telegram}`);
-    
+
     return contactList.length > 0 ? contactList.join('\n   ') : null;
   }
 
-  private extractContactFromHistory(history: Array<{role: 'user' | 'bot', message: string}>): string {
-    // Ищем все ответы пользователя с контактной информацией
+  private extractContactFromHistory(
+    history: Array<{ role: 'user' | 'bot'; message: string }>,
+  ): string {
+    // Look for all user responses with contact information
     const contacts: string[] = [];
-    
+
     for (let i = 0; i < history.length; i++) {
       const message = history[i];
       if (message.role === 'user') {
-        // Более гибкие регулярные выражения
-        const phoneMatch = message.message.match(/(\+?\d{1,4}[-.\s]?\d{3,4}[-.\s]?\d{3,4}[-.\s]?\d{3,4}|\+?\d{10,15})/);
+        // More flexible regular expressions
+        const phoneMatch = message.message.match(
+          /(\+?\d{1,4}[-.\s]?\d{3,4}[-.\s]?\d{3,4}[-.\s]?\d{3,4}|\+?\d{10,15})/,
+        );
         const emailMatch = message.message.match(/[\w\.-]+@[\w\.-]+\.\w+/);
         const telegramMatch = message.message.match(/@\w+/);
-        
+
         if (phoneMatch) {
           contacts.push(`📞 ${phoneMatch[0]}`);
         }
@@ -469,56 +550,49 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         }
       }
     }
-    
-    return contacts.length > 0 ? contacts.join('\n   ') : 'Не указано';
+
+    return contacts.length > 0 ? contacts.join('\n   ') : 'Not specified';
   }
 
-  private generateShortSummary(history: Array<{role: 'user' | 'bot', message: string}>): string {
-    // Находим основную проблему клиента
-    let problems: string[] = [];
-    let businessInfo: string[] = [];
-    
-    for (let i = 0; i < history.length - 1; i++) {
-      const botMessage = history[i];
-      const userMessage = history[i + 1];
-      
-      if (botMessage.role === 'bot' && userMessage.role === 'user') {
-        // Ищем вопросы о проблемах
-        if (botMessage.message.includes('проблем') || 
-            botMessage.message.includes('вызов') ||
-            botMessage.message.includes('challenge') ||
-            botMessage.message.includes('problem') ||
-            botMessage.message.includes('трудност') ||
-            botMessage.message.includes('сложност')) {
-          problems.push(userMessage.message);
-        }
+  private async generateShortSummary(
+    history: Array<{ role: 'user' | 'bot'; message: string }>,
+  ): Promise<string> {
+    try {
+      // Create brief conversation history for AI
+      const conversationText = history
+        .map((msg) => `${msg.role === 'user' ? 'Client' : 'Bot'}: ${msg.message}`)
+        .join('\n');
+
+      const summaryPrompt = `
+        Проанализируй разговор с потенциальным клиентом и создай краткое резюме (максимум 100 символов) на русском языке.
         
-        // Ищем дополнительную информацию о бизнесе
-        if (botMessage.message.includes('клиент') || 
-            botMessage.message.includes('customer') ||
-            botMessage.message.includes('продаж') ||
-            botMessage.message.includes('sales')) {
-          businessInfo.push(userMessage.message);
-        }
-      }
+        Разговор:
+        ${conversationText}
+        
+        Сосредоточься на:
+        1. Основной проблеме/потребности клиента
+        2. Сфере его бизнеса
+        3. Уровне заинтересованности
+        
+        Формат: "Сфера бизнеса - основная проблема/потребность"
+        Пример: "Салон красоты - не успевает обрабатывать лиды"
+        
+        Ответь только резюме, без дополнительного текста.
+      `;
+
+      const summary = await this.geminiService.generateResponse(summaryPrompt);
+      return summary.trim().substring(0, 120); // Limit length
+      
+    } catch (error) {
+      this.logger.warn('Failed to generate AI summary:', error);
+      return 'Interested in AI chatbot for business';
     }
-    
-    let summary = '';
-    if (problems.length > 0) {
-      summary = `Проблема: ${problems[0].substring(0, 80)}`;
-    } else if (businessInfo.length > 0) {
-      summary = `Бизнес-контекст: ${businessInfo[0].substring(0, 80)}`;
-    } else {
-      summary = 'Заинтересован в AI чат-боте для бизнеса';
-    }
-    
-    return summary;
   }
 
-  async onModuleDestroy() {
+  onModuleDestroy() {
     if (this.bot) {
       try {
-        await this.bot.stop();
+        this.bot.stop();
         this.logger.log('Telegram bot stopped gracefully');
       } catch (error) {
         this.logger.error('Error stopping Telegram bot:', error);

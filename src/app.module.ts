@@ -15,7 +15,7 @@ import { User, Conversation, Message } from './database/entities';
       type: 'sqlite',
       database: 'database.sqlite',
       entities: [User, Conversation, Message],
-      synchronize: true, // автоматически создаст таблицы
+      synchronize: true, // automatically creates tables
       logging: false,
     }),
     TelegramModule,

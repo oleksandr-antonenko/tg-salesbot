@@ -16,14 +16,17 @@ export class ConversationService {
     private messageRepository: Repository<Message>,
   ) {}
 
-  async findOrCreateUser(telegramId: string, userInfo: {
-    username?: string;
-    firstName?: string;
-    lastName?: string;
-    language?: string;
-  }): Promise<User> {
+  async findOrCreateUser(
+    telegramId: string,
+    userInfo: {
+      username?: string;
+      firstName?: string;
+      lastName?: string;
+      language?: string;
+    },
+  ): Promise<User> {
     let user = await this.userRepository.findOne({
-      where: { telegramId }
+      where: { telegramId },
     });
 
     if (!user) {
@@ -37,7 +40,7 @@ export class ConversationService {
       await this.userRepository.save(user);
       this.logger.log(`New user created: ${telegramId}`);
     } else {
-      // Обновляем информацию о пользователе если изменилась
+      // Update user information if changed
       let hasChanges = false;
       if (userInfo.username && user.username !== userInfo.username) {
         user.username = userInfo.username;
@@ -51,7 +54,7 @@ export class ConversationService {
         user.language = userInfo.language;
         hasChanges = true;
       }
-      
+
       if (hasChanges) {
         await this.userRepository.save(user);
       }
@@ -60,15 +63,18 @@ export class ConversationService {
     return user;
   }
 
-  async updateUserData(userId: number, data: {
-    businessType?: string;
-    currentChallenges?: string;
-    budget?: string;
-    timeline?: string;
-    contactInfo?: string;
-    conversationStage?: string;
-    language?: string;
-  }): Promise<void> {
+  async updateUserData(
+    userId: number,
+    data: {
+      businessType?: string;
+      currentChallenges?: string;
+      budget?: string;
+      timeline?: string;
+      contactInfo?: string;
+      conversationStage?: string;
+      language?: string;
+    },
+  ): Promise<void> {
     await this.userRepository.update(userId, data);
   }
 
@@ -84,10 +90,10 @@ export class ConversationService {
   }
 
   async startConversation(userId: number): Promise<Conversation> {
-    // Закрываем предыдущий разговор если есть активный
+    // Close previous conversation if there is an active one
     await this.conversationRepository.update(
       { userId, status: 'active' },
-      { status: 'abandoned', endedAt: new Date() }
+      { status: 'abandoned', endedAt: new Date() },
     );
 
     const conversation = this.conversationRepository.create({
@@ -104,9 +110,9 @@ export class ConversationService {
       relations: ['messages'],
       order: {
         messages: {
-          createdAt: 'ASC'
-        }
-      }
+          createdAt: 'ASC',
+        },
+      },
     });
   }
 
@@ -116,7 +122,7 @@ export class ConversationService {
     content: string,
     conversationStage?: string,
     aiModel?: string,
-    metadata?: any
+    metadata?: any,
   ): Promise<Message> {
     const message = this.messageRepository.create({
       conversationId,
@@ -130,13 +136,20 @@ export class ConversationService {
     return await this.messageRepository.save(message);
   }
 
-  async updateConversationStage(conversationId: number, stage: string): Promise<void> {
+  async updateConversationStage(
+    conversationId: number,
+    stage: string,
+  ): Promise<void> {
     await this.conversationRepository.update(conversationId, {
       completedStage: stage,
     });
   }
 
-  async completeConversation(conversationId: number, leadGenerated: boolean = false, leadScore?: number): Promise<void> {
+  async completeConversation(
+    conversationId: number,
+    leadGenerated: boolean = false,
+    leadScore?: number,
+  ): Promise<void> {
     await this.conversationRepository.update(conversationId, {
       status: 'completed',
       endedAt: new Date(),
@@ -145,7 +158,10 @@ export class ConversationService {
     });
   }
 
-  async getConversationHistory(userId: number, limit: number = 10): Promise<Conversation[]> {
+  async getConversationHistory(
+    userId: number,
+    limit: number = 10,
+  ): Promise<Conversation[]> {
     return await this.conversationRepository.find({
       where: { userId },
       relations: ['messages'],
@@ -163,13 +179,13 @@ export class ConversationService {
   }> {
     const totalConversations = await this.conversationRepository.count();
     const activeConversations = await this.conversationRepository.count({
-      where: { status: 'active' }
+      where: { status: 'active' },
     });
     const completedConversations = await this.conversationRepository.count({
-      where: { status: 'completed' }
+      where: { status: 'completed' },
     });
     const leadsGenerated = await this.conversationRepository.count({
-      where: { leadGenerated: true }
+      where: { leadGenerated: true },
     });
 
     const avgResult = await this.conversationRepository
