@@ -10,6 +10,7 @@ import * as session from 'telegraf-session-local';
 import { GeminiService } from '../gemini/gemini.service';
 import { SalesService } from '../sales/sales.service';
 import { ConversationService } from '../database/conversation.service';
+import { User } from '../database/entities';
 import {
   getLanguagePack,
   getAvailableLanguages,
@@ -126,15 +127,18 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
         if (!ctx.session || !ctx.session.dbUserId) {
           // Find or create user in database
-          const user = await this.conversationService.findOrCreateUser(
-            telegramId,
-            {
+          const { user, isNewUser } =
+            await this.conversationService.findOrCreateUser(telegramId, {
               username: userName,
               firstName,
               lastName,
               language: ctx.from?.language_code || 'en',
-            },
-          );
+            });
+
+          // Send new user notification if enabled
+          if (isNewUser) {
+            await this.sendNewUserNotification(user);
+          }
 
           ctx.session = {
             userId: telegramId,
@@ -170,15 +174,18 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         const lastName = ctx.from?.last_name;
 
         // Find or create user in database
-        const user = await this.conversationService.findOrCreateUser(
-          telegramId,
-          {
+        const { user, isNewUser } =
+          await this.conversationService.findOrCreateUser(telegramId, {
             username: userName,
             firstName,
             lastName,
             language: ctx.from?.language_code || 'en',
-          },
-        );
+          });
+
+        // Send new user notification if enabled
+        if (isNewUser) {
+          await this.sendNewUserNotification(user);
+        }
 
         // Completely clear and recreate session
         ctx.session = {
@@ -216,7 +223,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         }));
 
         // Arrange buttons in rows (max 2 per row for better mobile display)
-        const keyboard: Array<Array<{ text: string; callback_data: string }>> = [];
+        const keyboard: Array<Array<{ text: string; callback_data: string }>> =
+          [];
         for (let i = 0; i < languageButtons.length; i += 2) {
           keyboard.push(languageButtons.slice(i, i + 2));
         }
@@ -538,6 +546,52 @@ ${languagePack.leadNotification.leadScore} 10/10 (${languagePack.leadNotificatio
       );
     } catch (error) {
       this.logger.error('Error sending lead notification:', error);
+    }
+  }
+
+  private async sendNewUserNotification(user: User): Promise<void> {
+    try {
+      // Check if new user notifications are enabled
+      const notifyNewUsers = this.configService.get<string>('NOTIFY_NEW_USERS');
+      if (notifyNewUsers !== 'true') {
+        return;
+      }
+
+      const ownerChatId = this.configService.get<string>('OWNER_CHAT_ID');
+      if (!ownerChatId) {
+        this.logger.warn(
+          'OWNER_CHAT_ID not configured - cannot send new user notification',
+        );
+        return;
+      }
+
+      // Create notification message
+      const userDisplayName = user.firstName
+        ? `${user.firstName}${user.lastName ? ` ${user.lastName}` : ''}`
+        : user.username || `User ${user.telegramId}`;
+
+      const username = user.username ? `@${user.username}` : 'No username';
+      const language = user.language || 'en';
+
+      const notificationMessage = `🆕 **NEW USER STARTED CONVERSATION**
+
+👤 **Name:** ${userDisplayName}
+📱 **Username:** ${username}
+🌍 **Language:** ${language.toUpperCase()}
+🆔 **Telegram ID:** ${user.telegramId}
+🕐 **Time:** ${new Date().toLocaleString()}
+
+The user has just started their first conversation with the bot.`;
+
+      await this.bot.telegram.sendMessage(ownerChatId, notificationMessage, {
+        parse_mode: 'Markdown',
+      });
+
+      this.logger.log(
+        `New user notification sent for user: ${user.telegramId}`,
+      );
+    } catch (error) {
+      this.logger.error('Error sending new user notification:', error);
     }
   }
 

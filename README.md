@@ -8,6 +8,7 @@ A sophisticated Telegram chatbot built with NestJS that demonstrates AI-powered 
 - 🎯 **Sales Techniques**: Implements SPIN selling and AIDA framework
 - 🌍 **Multi-Language Support**: Supports English, Russian, Ukrainian, and German with automatic menu generation
 - 📊 **Conversation Management**: Tracks user data and conversation stages
+- 🔔 **Smart Notifications**: New user alerts and qualified lead notifications (configurable)
 - 🚀 **Built with NestJS**: Modern, scalable architecture
 
 ## About Alex Antonenko
@@ -35,12 +36,14 @@ TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
 GEMINI_API_KEY=your_gemini_api_key_here
 OWNER_CHAT_ID=your_chat_id_here
 PORT=3000
+NOTIFY_NEW_USERS=true
 ```
 
 3. **Get Required API Keys:**
    - **Telegram Bot Token**: Create a bot via [@BotFather](https://t.me/botfather) on Telegram
    - **Gemini API Key**: Get from [Google AI Studio](https://makersuite.google.com/app/apikey)
-   - **Owner Chat ID**: Your Telegram chat ID for receiving lead notifications
+   - **Owner Chat ID**: Your Telegram chat ID for receiving notifications
+   - **NOTIFY_NEW_USERS**: Set to `true` to receive notifications when new users start conversations (optional)
 
 ### How to Get Your Telegram Chat ID (OWNER_CHAT_ID)
 

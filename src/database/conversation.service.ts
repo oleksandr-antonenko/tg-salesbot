@@ -24,10 +24,12 @@ export class ConversationService {
       lastName?: string;
       language?: string;
     },
-  ): Promise<User> {
+  ): Promise<{ user: User; isNewUser: boolean }> {
     let user = await this.userRepository.findOne({
       where: { telegramId },
     });
+
+    let isNewUser = false;
 
     if (!user) {
       user = this.userRepository.create({
@@ -38,6 +40,7 @@ export class ConversationService {
         language: userInfo.language || 'en',
       });
       await this.userRepository.save(user);
+      isNewUser = true;
       this.logger.log(`New user created: ${telegramId}`);
     } else {
       // Update user information if changed
@@ -60,7 +63,7 @@ export class ConversationService {
       }
     }
 
-    return user;
+    return { user, isNewUser };
   }
 
   async updateUserData(
