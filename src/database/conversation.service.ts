@@ -116,6 +116,18 @@ export class ConversationService {
     });
   }
 
+  async getConversationById(conversationId: number): Promise<Conversation | null> {
+    return await this.conversationRepository.findOne({
+      where: { id: conversationId },
+      relations: ['messages'],
+      order: {
+        messages: {
+          createdAt: 'ASC',
+        },
+      },
+    });
+  }
+
   async logMessage(
     conversationId: number,
     messageType: 'user' | 'bot',
