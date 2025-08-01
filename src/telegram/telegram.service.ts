@@ -441,16 +441,31 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     }>,
   ): Promise<void> {
     try {
+      // Get fresh conversation history from database to ensure we have all messages
+      let fullConversationHistory = conversationHistory;
+      if (session.conversationId) {
+        const conversation = await this.conversationService.getConversationById(session.conversationId);
+        if (conversation?.messages) {
+          fullConversationHistory = conversation.messages
+            .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+            .map((msg) => ({
+              role: msg.messageType as 'user' | 'bot',
+              message: msg.content,
+            }));
+          this.logger.log(`Got ${fullConversationHistory.length} messages from DB for lead notification`);
+        }
+      }
+
       // Extract information from session and conversation history
       const telegramUsername = session.userName || 'Unknown';
       const providedName = session.userProvidedName;
       const businessType =
         session.userData?.businessType ||
-        this.extractBusinessFromHistory(conversationHistory);
+        this.extractBusinessFromHistory(fullConversationHistory);
       const contactInfo =
         this.formatExtractedContacts(session.extractedContacts) ||
-        this.extractContactFromHistory(conversationHistory);
-      const summary = await this.generateShortSummary(conversationHistory);
+        this.extractContactFromHistory(fullConversationHistory);
+      const summary = await this.generateShortSummary(fullConversationHistory, session.conversationId);
 
       // Format names
       let nameSection = '';
@@ -556,35 +571,58 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
   private async generateShortSummary(
     history: Array<{ role: 'user' | 'bot'; message: string }>,
+    conversationId?: number,
   ): Promise<string> {
     try {
+      // If history is empty or insufficient, try to get from database
+      let conversationHistory = history;
+      if ((!history || history.length < 3) && conversationId) {
+        this.logger.log(`Getting full conversation history from DB for conversation ${conversationId}`);
+        const conversation = await this.conversationService.getConversationById(conversationId);
+        if (conversation?.messages) {
+          conversationHistory = conversation.messages
+            .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+            .map((msg) => ({
+              role: msg.messageType as 'user' | 'bot',
+              message: msg.content,
+            }));
+        }
+      }
+
+      this.logger.log(`Generating summary with ${conversationHistory.length} messages`);
+      
       // Create brief conversation history for AI
-      const conversationText = history
+      const conversationText = conversationHistory
         .map((msg) => `${msg.role === 'user' ? 'Client' : 'Bot'}: ${msg.message}`)
         .join('\n');
 
+      if (!conversationText.trim()) {
+        this.logger.warn('No conversation text available for summary');
+        return 'Interested in AI chatbot for business';
+      }
+
       const summaryPrompt = `
-        Проанализируй разговор с потенциальным клиентом и создай краткое резюме (максимум 100 символов) на русском языке.
+        Analyze the conversation with a potential client and create a brief summary (maximum 100 characters) in Russian.
         
-        Разговор:
+        Conversation:
         ${conversationText}
         
-        Сосредоточься на:
-        1. Основной проблеме/потребности клиента
-        2. Сфере его бизнеса
-        3. Уровне заинтересованности
+        Focus on:
+        1. Main problem/need of the client
+        2. Their business sector
+        3. Level of interest
         
-        Формат: "Сфера бизнеса - основная проблема/потребность"
-        Пример: "Салон красоты - не успевает обрабатывать лиды"
+        Format: "Business sector - main problem/need"
+        Example: "Салон красоты - не успевает обрабатывать лиды"
         
-        Ответь только резюме, без дополнительного текста.
+        Respond only with the summary, no additional text.
       `;
 
       const summary = await this.geminiService.generateResponse(summaryPrompt);
       return summary.trim().substring(0, 120); // Limit length
       
     } catch (error) {
-      this.logger.warn('Failed to generate AI summary:', error);
+      this.logger.error('Failed to generate AI summary:', error);
       return 'Interested in AI chatbot for business';
     }
   }
