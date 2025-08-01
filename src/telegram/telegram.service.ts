@@ -573,18 +573,18 @@ ${languagePack.leadNotification.leadScore} 10/10 (${languagePack.leadNotificatio
       const username = user.username ? `@${user.username}` : 'No username';
       const language = user.language || 'en';
 
-      const notificationMessage = `🆕 **NEW USER STARTED CONVERSATION**
+      const notificationMessage = `🆕 <b>NEW USER STARTED CONVERSATION</b>
 
-👤 **Name:** ${userDisplayName}
-📱 **Username:** ${username}
-🌍 **Language:** ${language.toUpperCase()}
-🆔 **Telegram ID:** ${user.telegramId}
-🕐 **Time:** ${new Date().toLocaleString()}
+👤 <b>Name:</b> ${userDisplayName}
+📱 <b>Username:</b> ${username}
+🌍 <b>Language:</b> ${language.toUpperCase()}
+🆔 <b>Telegram ID:</b> ${user.telegramId}
+🕐 <b>Time:</b> ${new Date().toLocaleString()}
 
 The user has just started their first conversation with the bot.`;
 
       await this.bot.telegram.sendMessage(ownerChatId, notificationMessage, {
-        parse_mode: 'Markdown',
+        parse_mode: 'HTML',
       });
 
       this.logger.log(
