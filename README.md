@@ -6,7 +6,7 @@ A sophisticated Telegram chatbot built with NestJS that demonstrates AI-powered 
 
 - 🤖 **AI-Powered Conversations**: Uses Google Gemini AI for intelligent responses
 - 🎯 **Sales Techniques**: Implements SPIN selling and AIDA framework
-- 🌍 **Multi-Language Support**: Automatically detects and responds in user's language
+- 🌍 **Multi-Language Support**: Supports English, Russian, and Ukrainian languages
 - 📊 **Conversation Management**: Tracks user data and conversation stages
 - 🚀 **Built with NestJS**: Modern, scalable architecture
 

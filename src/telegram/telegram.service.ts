@@ -10,6 +10,7 @@ import * as session from 'telegraf-session-local';
 import { GeminiService } from '../gemini/gemini.service';
 import { SalesService } from '../sales/sales.service';
 import { ConversationService } from '../database/conversation.service';
+import { getLanguagePack } from '../localization/language-packs';
 
 interface BotContext extends Context {
   session?: {
@@ -69,18 +70,23 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       process.once('SIGINT', () => this.bot.stop('SIGINT'));
       process.once('SIGTERM', () => this.bot.stop('SIGTERM'));
     } catch (error) {
-      if (error.response?.error_code === 409) {
+      if (
+        (error as { response?: { error_code?: number } })?.response
+          ?.error_code === 409
+      ) {
         this.logger.error(
           'Bot conflict detected. Another instance might be running. Waiting and retrying...',
         );
         // Wait 5 seconds and try again
-        setTimeout(async () => {
-          try {
-            await this.bot.launch();
-            this.logger.log('Telegram bot started successfully after retry');
-          } catch (retryError) {
-            this.logger.error('Failed to start bot after retry:', retryError);
-          }
+        setTimeout(() => {
+          void (async () => {
+            try {
+              await this.bot.launch();
+              this.logger.log('Telegram bot started successfully after retry');
+            } catch (retryError) {
+              this.logger.error('Failed to start bot after retry:', retryError);
+            }
+          })();
         }, 5000);
       } else {
         this.logger.error('Failed to start Telegram bot:', error);
@@ -95,14 +101,14 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         database: 'sessions.json',
         property: 'session',
         storage: session.storageFileAsync,
-        getSessionKey: (ctx) => {
+        getSessionKey: (ctx): string => {
           return ctx.from && ctx.chat
             ? `${ctx.from.id}:${ctx.chat.id}`
             : 'unknown';
         },
         format: {
           serialize: (obj) => JSON.stringify(obj, null, 2),
-          deserialize: (str) => JSON.parse(str),
+          deserialize: (str) => JSON.parse(str) as unknown,
         },
       }),
     );
@@ -195,8 +201,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         // Clear all user data in database
         await this.conversationService.clearUserData(user.id);
 
-        const welcomeText =
-          'Welcome! Please choose your preferred language:\nДобро пожаловать! Выберите предпочитаемый язык:';
+        const languagePack = getLanguagePack('en'); // Default to English for welcome
+        const welcomeText = languagePack.welcomeText;
 
         await ctx.reply(welcomeText, {
           reply_markup: {
@@ -204,6 +210,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
               [
                 { text: '🇺🇸 English', callback_data: 'lang_en' },
                 { text: '🇷🇺 Русский', callback_data: 'lang_ru' },
+                { text: '🇺🇦 Українська', callback_data: 'lang_uk' },
               ],
             ],
           },
@@ -220,9 +227,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         this.logger.log(`New session started for user: ${telegramId}`);
       } catch (error) {
         this.logger.error('Error starting new session:', error);
-        await ctx.reply(
-          'Sorry, there was an error starting a new session. Please try again.',
-        );
+        const languagePack = getLanguagePack('en');
+        await ctx.reply(languagePack.sessionError);
       }
     });
 
@@ -242,7 +248,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       }
 
       await ctx.answerCbQuery();
-      const confirmText = 'Language selected! / Язык выбран!';
+      const languagePack = getLanguagePack(selectedLanguage);
+      const confirmText = languagePack.languageSelected;
       await ctx.editMessageText(confirmText);
 
       const welcomeMessage =
@@ -402,10 +409,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         }
       } catch (error) {
         this.logger.error('Error processing message:', error);
-        const errorMessage =
-          ctx.session?.language === 'ru'
-            ? 'Извините, произошла ошибка. Попробуйте еще раз.'
-            : 'Sorry, an error occurred. Please try again.';
+        const languagePack = getLanguagePack(ctx.session?.language || 'en');
+        const errorMessage = languagePack.errorMessage;
         await ctx.reply(errorMessage);
 
         // Log error
@@ -434,7 +439,20 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async sendLeadNotification(
-    session: any,
+    session: {
+      userId: string;
+      userName?: string;
+      userProvidedName?: string;
+      conversationId?: number;
+      userData?: {
+        businessType?: string;
+      };
+      extractedContacts?: {
+        phone?: string;
+        email?: string;
+        telegram?: string;
+      };
+    },
     conversationHistory: Array<{
       role: 'user' | 'bot';
       message: string;
@@ -444,7 +462,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       // Get fresh conversation history from database to ensure we have all messages
       let fullConversationHistory = conversationHistory;
       if (session.conversationId) {
-        const conversation = await this.conversationService.getConversationById(session.conversationId);
+        const conversation = await this.conversationService.getConversationById(
+          session.conversationId,
+        );
         if (conversation?.messages) {
           fullConversationHistory = conversation.messages
             .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
@@ -452,7 +472,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
               role: msg.messageType as 'user' | 'bot',
               message: msg.content,
             }));
-          this.logger.log(`Got ${fullConversationHistory.length} messages from DB for lead notification`);
+          this.logger.log(
+            `Got ${fullConversationHistory.length} messages from DB for lead notification`,
+          );
         }
       }
 
@@ -465,7 +487,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const contactInfo =
         this.formatExtractedContacts(session.extractedContacts) ||
         this.extractContactFromHistory(fullConversationHistory);
-      const summary = await this.generateShortSummary(fullConversationHistory, session.conversationId);
+      const summary = await this.generateShortSummary(
+        fullConversationHistory,
+        session.conversationId,
+      );
 
       // Format names
       let nameSection = '';
@@ -475,19 +500,21 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         nameSection = telegramUsername;
       }
 
-      const leadMessage = `🎯 NEW LEAD!
+      // Use Russian for lead notifications (Alex is Russian-speaking)
+      const languagePack = getLanguagePack('ru');
+      const leadMessage = `${languagePack.leadNotification.newLead}
 
-1. **Name and Contact:**
+1. ${languagePack.leadNotification.nameAndContact}
    ${nameSection}
    ${contactInfo}
 
-2. **Business Sector:**
+2. ${languagePack.leadNotification.businessSector}
    ${businessType}
 
-3. **Summary:**
+3. ${languagePack.leadNotification.summary}
    ${summary}
 
-📊 Lead Score: 10/10 (Deal Closed)`;
+${languagePack.leadNotification.leadScore} 10/10 (${languagePack.leadNotification.dealClosed})`;
 
       // Send to Alex - use his chat ID from configuration
       const alexChatId = this.configService.get<string>(
@@ -520,7 +547,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         return userMessage.message;
       }
     }
-    return 'Not specified';
+    const languagePack = getLanguagePack('ru'); // Alex gets notifications in Russian
+    return languagePack.leadNotification.notSpecified;
   }
 
   private formatExtractedContacts(contacts?: {
@@ -551,7 +579,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         const phoneMatch = message.message.match(
           /(\+?\d{1,4}[-.\s]?\d{3,4}[-.\s]?\d{3,4}[-.\s]?\d{3,4}|\+?\d{10,15})/,
         );
-        const emailMatch = message.message.match(/[\w\.-]+@[\w\.-]+\.\w+/);
+        const emailMatch = message.message.match(/[\w.-]+@[\w.-]+\.\w+/);
         const telegramMatch = message.message.match(/@\w+/);
 
         if (phoneMatch) {
@@ -566,7 +594,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    return contacts.length > 0 ? contacts.join('\n   ') : 'Not specified';
+    const languagePack = getLanguagePack('ru'); // Alex gets notifications in Russian
+    return contacts.length > 0
+      ? contacts.join('\n   ')
+      : languagePack.leadNotification.notSpecified;
   }
 
   private async generateShortSummary(
@@ -577,8 +608,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       // If history is empty or insufficient, try to get from database
       let conversationHistory = history;
       if ((!history || history.length < 3) && conversationId) {
-        this.logger.log(`Getting full conversation history from DB for conversation ${conversationId}`);
-        const conversation = await this.conversationService.getConversationById(conversationId);
+        this.logger.log(
+          `Getting full conversation history from DB for conversation ${conversationId}`,
+        );
+        const conversation =
+          await this.conversationService.getConversationById(conversationId);
         if (conversation?.messages) {
           conversationHistory = conversation.messages
             .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
@@ -589,41 +623,52 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         }
       }
 
-      this.logger.log(`Generating summary with ${conversationHistory.length} messages`);
-      
+      this.logger.log(
+        `Generating summary with ${conversationHistory.length} messages`,
+      );
+
       // Create brief conversation history for AI
       const conversationText = conversationHistory
-        .map((msg) => `${msg.role === 'user' ? 'Client' : 'Bot'}: ${msg.message}`)
+        .map((msg) => {
+          const languagePack = getLanguagePack('ru'); // Summary in Russian for Alex
+          const roleLabel =
+            msg.role === 'user'
+              ? languagePack.leadNotification.client
+              : languagePack.leadNotification.bot;
+          return `${roleLabel}: ${msg.message}`;
+        })
         .join('\n');
 
       if (!conversationText.trim()) {
         this.logger.warn('No conversation text available for summary');
-        return 'Interested in AI chatbot for business';
+        const languagePack = getLanguagePack('ru');
+        return languagePack.leadNotification.interestedFallback;
       }
 
+      const languagePack = getLanguagePack('ru'); // Summary in Russian for Alex
       const summaryPrompt = `
-        Analyze the conversation with a potential client and create a brief summary (maximum 100 characters) in Russian.
+        ${languagePack.summaryPrompt.instruction}
         
-        Conversation:
+        Разговор:
         ${conversationText}
         
-        Focus on:
-        1. Main problem/need of the client
-        2. Their business sector
-        3. Level of interest
+        ${languagePack.summaryPrompt.focusOn}
+        ${languagePack.summaryPrompt.mainProblem}
+        ${languagePack.summaryPrompt.businessSector}
+        ${languagePack.summaryPrompt.interestLevel}
         
-        Format: "Business sector - main problem/need"
-        Example: "Салон красоты - не успевает обрабатывать лиды"
+        ${languagePack.summaryPrompt.format}
+        ${languagePack.summaryPrompt.example}
         
-        Respond only with the summary, no additional text.
+        ${languagePack.summaryPrompt.responseOnly}
       `;
 
       const summary = await this.geminiService.generateResponse(summaryPrompt);
       return summary.trim().substring(0, 120); // Limit length
-      
     } catch (error) {
       this.logger.error('Failed to generate AI summary:', error);
-      return 'Interested in AI chatbot for business';
+      const languagePack = getLanguagePack('ru');
+      return languagePack.leadNotification.interestedFallback;
     }
   }
 

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { GeminiService } from '../gemini/gemini.service';
 import { ConversationService } from '../database/conversation.service';
+import { getLanguagePack } from '../localization/language-packs';
 import * as langdetect from 'langdetect';
 
 interface ConversationSession {
@@ -53,7 +54,16 @@ export class SalesService {
         lang: string;
         prob: number;
       }>;
-      return Promise.resolve(detected[0]?.lang || 'en');
+      const detectedLang = detected[0]?.lang || 'en';
+
+      // Map language detection results to our supported languages
+      if (detectedLang === 'uk' || detectedLang === 'ukrainian') {
+        return Promise.resolve('uk');
+      } else if (detectedLang === 'ru' || detectedLang === 'russian') {
+        return Promise.resolve('ru');
+      } else {
+        return Promise.resolve('en');
+      }
     } catch {
       this.logger.warn('Language detection failed, defaulting to English');
       return Promise.resolve('en');
@@ -61,23 +71,8 @@ export class SalesService {
   }
 
   generateWelcomeMessage(language: string): Promise<string> {
-    const welcomeMessages = {
-      en: `🤖 Hi! I'm Alex's AI assistant, here to show you how AI chatbots can revolutionize business sales!
-
-Alex Antonenko is a seasoned Tech Lead and entrepreneur who's helped countless businesses boost their revenue with intelligent chatbot solutions.
-
-Before we dive in, I'd love to get to know you better. What's your name? 😊`,
-      ru: `🤖 Привет! Я ИИ-помощник Алекса, готов показать, как чат-боты могут революционизировать продажи бизнеса!
-
-Алекс Антоненко — опытный Tech Lead и предприниматель, который помог бесчисленным компаниям увеличить доходы с помощью умных чат-ботов.
-
-Для начала давайте познакомимся! Как вас зовут? 😊`,
-    };
-
-    return Promise.resolve(
-      welcomeMessages[language as keyof typeof welcomeMessages] ||
-        welcomeMessages.en,
-    );
+    const languagePack = getLanguagePack(language);
+    return Promise.resolve(languagePack.welcomeMessage);
   }
 
   async processMessage(
@@ -92,10 +87,7 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
       );
 
       // Analyze message to extract data
-      const extractedData = await this.analyzeUserMessage(
-        userMessage,
-        language,
-      );
+      const extractedData = await this.analyzeUserMessage(userMessage);
       const leadScore = this.calculateLeadScore(
         userMessage,
         session,
@@ -184,66 +176,14 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
       };
     } catch (error) {
       this.logger.error('Error processing message:', error);
-      const errorMessage =
-        session.language === 'ru'
-          ? 'Извините, произошла ошибка. Расскажите еще раз о вашем бизнесе?'
-          : 'Sorry, there was an error. Could you tell me more about your business?';
+      const languagePack = getLanguagePack(session.language);
+      const errorMessage = languagePack.errorMessage;
 
       return { message: errorMessage };
     }
   }
 
-  getSalesStagePrompt(stage: string, language: string): string {
-    const prompts: Record<string, Record<string, string>> = {
-      en: {
-        name_collection:
-          'Build RAPPORT: Ask for their name to establish personal connection. Be warm and friendly.',
-        trust_building:
-          'Build TRUST: Show genuine interest, acknowledge their name, make them feel comfortable. Create safe environment.',
-        permission_request:
-          'Ask PERMISSION: Politely request permission to ask a few questions about their business. This shows respect.',
-        situation_discovery:
-          "Ask about their business type, size, and current customer interaction methods. Use SPIN: What's your current SITUATION?",
-        problem_identification:
-          'Identify specific PROBLEMS with current customer service or sales processes. What challenges are you facing?',
-        implication_development:
-          'Explore IMPLICATIONS: What happens if these problems persist? Lost sales? Customer dissatisfaction?',
-        need_payoff:
-          'Present NEED-PAYOFF: How would solving this improve their business? Increase sales, save time, better customer experience?',
-        proposal:
-          'Present AI chatbot solution tailored to their needs. Use AIDA: grab ATTENTION, build INTEREST, create DESIRE.',
-        closing:
-          'Create ACTION: Guide toward PoC order. Limited time offer, risk-free trial, immediate benefits.',
-      },
-      ru: {
-        name_collection:
-          'Установите РАППОРТ: спросите имя для создания личной связи. Будьте теплыми и дружелюбными.',
-        trust_building:
-          'Установите ДОВЕРИЕ: проявите искренний интерес, обратитесь по имени, создайте комфорт. Безопасная среда.',
-        permission_request:
-          'Просите РАЗРЕШЕНИЕ: вежливо попросите разрешение задать несколько вопросов о бизнесе. Это проявление уважения.',
-        situation_discovery:
-          'Спросите о типе бизнеса, размере и текущих методах взаимодействия с клиентами. SPIN: какая у вас СИТУАЦИЯ?',
-        problem_identification:
-          'Выявите конкретные ПРОБЛЕМЫ с текущим обслуживанием клиентов или процессами продаж. С какими вызовами сталкиваетесь?',
-        implication_development:
-          'Изучите ПОСЛЕДСТВИЯ: что будет, если эти проблемы останутся? Потерянные продажи? Недовольные клиенты?',
-        need_payoff:
-          'Представьте ВЫГОДУ: как решение этого улучшит бизнес? Увеличение продаж, экономия времени, лучший опыт клиентов?',
-        proposal:
-          'Представьте решение ИИ-чатбота под их нужды. AIDA: привлеките ВНИМАНИЕ, вызовите ИНТЕРЕС, создайте ЖЕЛАНИЕ.',
-        closing:
-          'Создайте ДЕЙСТВИЕ: направьте к заказу PoC. Ограниченное предложение, безрисковый тест, немедленные выгоды.',
-      },
-    };
-
-    return prompts[language]?.[stage] || prompts.en?.[stage] || '';
-  }
-
-  private async analyzeUserMessage(
-    message: string,
-    language: string,
-  ): Promise<{
+  private async analyzeUserMessage(message: string): Promise<{
     businessType?: string;
     challenges?: string;
     budget?: string;
@@ -289,7 +229,20 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
         await this.geminiService.generateResponse(analysisPrompt);
       const cleanResponse = response.replace(/```json|```/g, '').trim();
 
-      const result = JSON.parse(cleanResponse);
+      const result = JSON.parse(cleanResponse) as {
+        businessType?: string;
+        challenges?: string;
+        budget?: string;
+        urgency?: 'low' | 'medium' | 'high';
+        hasName?: boolean;
+        isPositiveResponse?: boolean;
+        gavePermission?: boolean;
+        contactInfo?: {
+          phone?: string;
+          email?: string;
+          telegram?: string;
+        };
+      };
       this.logger.log(`AI Analysis result: ${JSON.stringify(result)}`);
 
       return result;
@@ -302,7 +255,20 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
   private calculateLeadScore(
     message: string,
     session: ConversationSession,
-    extractedData: any,
+    extractedData: {
+      businessType?: string;
+      challenges?: string;
+      budget?: string;
+      urgency?: 'low' | 'medium' | 'high';
+      hasName?: boolean;
+      isPositiveResponse?: boolean;
+      gavePermission?: boolean;
+      contactInfo?: {
+        phone?: string;
+        email?: string;
+        telegram?: string;
+      };
+    },
   ): number {
     let score = 0;
 
@@ -366,7 +332,20 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
 
   private determineNextStage(
     currentStage: string,
-    extractedData: any,
+    extractedData: {
+      businessType?: string;
+      challenges?: string;
+      budget?: string;
+      urgency?: 'low' | 'medium' | 'high';
+      hasName?: boolean;
+      isPositiveResponse?: boolean;
+      gavePermission?: boolean;
+      contactInfo?: {
+        phone?: string;
+        email?: string;
+        telegram?: string;
+      };
+    },
     leadScore: number,
     userMessage: string,
   ): string {
@@ -378,7 +357,7 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
       case 'greeting':
         return 'name_collection';
 
-      case 'name_collection':
+      case 'name_collection': {
         // Transition if message contains a name (any word without special characters)
         const containsName = /^[А-Яа-яA-Za-z\s]{2,20}$/.test(
           userMessage.trim(),
@@ -391,6 +370,7 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
         }
         // Stay on name collection
         return 'name_collection';
+      }
 
       case 'trust_building':
         // Go directly to business discovery, skipping permission request
@@ -399,7 +379,7 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
         );
         return 'situation_discovery';
 
-      case 'permission_request':
+      case 'permission_request': {
         // Move to business questions if user didn't explicitly refuse
         const userRefused =
           userMessage.toLowerCase().includes('нет') ||
@@ -414,6 +394,7 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
           return 'situation_discovery';
         }
         return 'permission_request';
+      }
 
       case 'situation_discovery':
         // Move if user answered business question (any response except one-word answers)
@@ -465,7 +446,7 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
         }
         return 'proposal';
 
-      case 'closing':
+      case 'closing': {
         // Move to contact collection if user agreed
         const userAgreed =
           userMessage.toLowerCase().includes('да') ||
@@ -484,11 +465,12 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
           return 'contact_collection';
         }
         return 'closing';
+      }
 
-      case 'contact_collection':
+      case 'contact_collection': {
         // Move to completion if new contacts received or already have saved contacts
         const hasNewContactInfo =
-          /(\+?\d{10,15}|[\w\.-]+@[\w\.-]+\.\w+|@\w+)/i.test(userMessage);
+          /(\+?\d{10,15}|[\w.-]+@[\w.-]+\.\w+|@\w+)/i.test(userMessage);
         const hasStoredContacts =
           extractedData.contactInfo &&
           (extractedData.contactInfo.phone ||
@@ -502,6 +484,7 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
           return 'conversation_completed';
         }
         return 'contact_collection';
+      }
 
       case 'conversation_completed':
         return 'conversation_completed'; // Conversation ended
@@ -543,10 +526,7 @@ Before we dive in, I'd love to get to know you better. What's your name? 😊`,
       let totalScore = 0;
 
       for (const message of userMessages) {
-        const extractedData = await this.analyzeUserMessage(
-          message.content,
-          'en',
-        );
+        const extractedData = await this.analyzeUserMessage(message.content);
         if (extractedData.businessType) {
           insights.push(`Business type: ${extractedData.businessType}`);
         }

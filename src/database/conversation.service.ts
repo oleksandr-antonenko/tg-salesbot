@@ -116,7 +116,9 @@ export class ConversationService {
     });
   }
 
-  async getConversationById(conversationId: number): Promise<Conversation | null> {
+  async getConversationById(
+    conversationId: number,
+  ): Promise<Conversation | null> {
     return await this.conversationRepository.findOne({
       where: { id: conversationId },
       relations: ['messages'],
@@ -134,7 +136,7 @@ export class ConversationService {
     content: string,
     conversationStage?: string,
     aiModel?: string,
-    metadata?: any,
+    metadata?: Record<string, unknown>,
   ): Promise<Message> {
     const message = this.messageRepository.create({
       conversationId,
@@ -200,18 +202,28 @@ export class ConversationService {
       where: { leadGenerated: true },
     });
 
-    const avgResult = await this.conversationRepository
-      .createQueryBuilder('conversation')
-      .select('AVG(conversation.leadScore)', 'avg')
-      .where('conversation.leadScore IS NOT NULL')
-      .getRawOne();
+    // Get average lead score with proper typing
+    let averageLeadScore = 0;
+    try {
+      const avgResult = (await this.conversationRepository
+        .createQueryBuilder('conversation')
+        .select('AVG(conversation.leadScore)', 'avg')
+        .where('conversation.leadScore IS NOT NULL')
+        .getRawOne()) as unknown as { avg: string } | undefined;
+
+      if (avgResult?.avg) {
+        averageLeadScore = parseFloat(avgResult.avg);
+      }
+    } catch (error) {
+      this.logger.warn('Failed to calculate average lead score:', error);
+    }
 
     return {
       totalConversations,
       activeConversations,
       completedConversations,
       leadsGenerated,
-      averageLeadScore: parseFloat(avgResult?.avg || '0'),
+      averageLeadScore,
     };
   }
 }

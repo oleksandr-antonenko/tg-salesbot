@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
+import { getLanguagePack } from '../localization/language-packs';
 
 @Injectable()
 export class GeminiService {
@@ -41,10 +42,9 @@ export class GeminiService {
     language: string,
   ): Promise<string> {
     const systemPrompt = this.buildSalesPrompt(conversationContext, language);
+    const languagePack = getLanguagePack(language);
     const languageReminder =
-      language === 'ru'
-        ? 'ОБЯЗАТЕЛЬНО ОТВЕЧАЙ НА РУССКОМ ЯЗЫКЕ!'
-        : 'RESPOND IN ENGLISH ONLY!';
+      languagePack.aiInstructions.responseLanguageReminder;
 
     // Add conversation history for context
     let conversationHistoryText = '';
@@ -53,7 +53,7 @@ export class GeminiService {
       conversationContext.conversationHistory.length > 0
     ) {
       conversationHistoryText = '\n\nCONVERSATION HISTORY:\n';
-      conversationContext.conversationHistory.forEach((msg, index) => {
+      conversationContext.conversationHistory.forEach((msg) => {
         const role = msg.role === 'user' ? 'User' : 'Bot';
         conversationHistoryText += `${role}: ${msg.message}\n`;
       });
@@ -74,10 +74,8 @@ export class GeminiService {
     },
     language: string,
   ): string {
-    const languageInstruction =
-      language === 'ru'
-        ? 'КРИТИЧЕСКИ ВАЖНО: ОТВЕЧАЙ ТОЛЬКО НА РУССКОМ ЯЗЫКЕ! НИКАКОГО АНГЛИЙСКОГО!'
-        : 'CRITICAL: RESPOND ONLY IN ENGLISH! NO OTHER LANGUAGES!';
+    const languagePack = getLanguagePack(language);
+    const languageInstruction = languagePack.aiInstructions.languageInstruction;
 
     const basePrompt = `${languageInstruction}
 
@@ -150,61 +148,11 @@ CRITICAL INSTRUCTIONS:
   }
 
   private getStageInstructions(stage: string, language: string): string {
-    const instructions = {
-      en: {
-        name_collection:
-          'ONLY ask for their name warmly. ABSOLUTELY NO mention of business, AI, chatbots, or sales. Just get their name and be friendly.',
-        trust_building:
-          "MANDATORY: say 'Nice to meet you, [NAME]! What business are you in?' IMPORTANT: ALWAYS end with a BUSINESS QUESTION. Salesperson LEADS with questions.",
-        permission_request:
-          'ONLY ask for permission to discuss their business. Be polite and respectful. Do NOT ask any actual business questions yet.',
-        situation_discovery:
-          'NOW you can ask about their business type and current processes. Use SPIN methodology - understand their SITUATION.',
-        problem_identification:
-          'Focus on finding their PROBLEMS and pain points. What challenges do they face?',
-        implication_development:
-          "Explore IMPLICATIONS of their problems. What happens if they don't solve these issues?",
-        need_payoff:
-          'Present the NEED-PAYOFF. How would solving their problems benefit them?',
-        proposal:
-          'Present your AI chatbot solution. Use AIDA - get attention, build interest, create desire.',
-        closing:
-          'Create urgency and guide toward action. Limited time offers, immediate benefits.',
-        contact_collection:
-          "FINAL STAGE: If contacts not collected yet - ask for them. If contacts received - say 'Thank you! Alex Antonenko will contact you soon. You can also reach him directly: @aleksandr_antonenko' and END conversation.",
-        conversation_completed:
-          'CONVERSATION ENDED: Thank them for their time, confirm Alex will contact them, give @aleksandr_antonenko contact. NO MORE questions. Just politely end.',
-      },
-      ru: {
-        name_collection:
-          'ТОЛЬКО спросите имя тепло и дружелюбно. АБСОЛЮТНО НИКАКИХ упоминаний бизнеса, ИИ, чат-ботов или продаж. Просто узнайте имя и будьте дружелюбны.',
-        trust_building:
-          "ОБЯЗАТЕЛЬНО скажите: 'Приятно познакомиться, [ИМЯ]! Каким бизнесом занимаетесь?' ВАЖНО: ВСЕГДА заканчивайте ВОПРОСОМ о бизнесе. Продавец ВЕДЕТ разговор вопросами.",
-        permission_request:
-          'ТОЛЬКО попросите разрешение обсудить их бизнес. Будьте вежливы и уважительны. НЕ задавайте пока никаких реальных бизнес-вопросов.',
-        situation_discovery:
-          'ТЕПЕРЬ можете спрашивать о типе бизнеса и текущих процессах. Используйте SPIN - поймите их СИТУАЦИЮ.',
-        problem_identification:
-          'Сосредоточьтесь на поиске их ПРОБЛЕМ и болевых точек. С какими вызовами они сталкиваются?',
-        implication_development:
-          'Изучите ПОСЛЕДСТВИЯ их проблем. Что случится, если они не решат эти вопросы?',
-        need_payoff:
-          'Представьте ВЫГОДУ. Как решение их проблем принесет им пользу?',
-        proposal:
-          'Представьте ваше решение ИИ-чатбота. Используйте AIDA - привлеките внимание, вызовите интерес, создайте желание.',
-        closing:
-          'Создайте срочность и направьте к действию. Ограниченные предложения, немедленные выгоды.',
-        contact_collection:
-          "ФИНАЛЬНАЯ СТАДИЯ: Если контакты еще не получены - спросите их. Если контакты получены - скажите 'Спасибо! Алекс Антоненко свяжется с вами в ближайшее время. Также можете написать ему напрямую: @aleksandr_antonenko' и ЗАВЕРШИТЕ разговор.",
-        conversation_completed:
-          'РАЗГОВОР ЗАВЕРШЕН: Поблагодарите за время, подтвердите что Алекс свяжется, дайте контакт @aleksandr_antonenko. Больше НЕ задавайте вопросов. Просто вежливо завершите.',
-      },
-    };
-
+    const languagePack = getLanguagePack(language);
     return (
-      instructions[language]?.[stage] ||
-      instructions.en?.[stage] ||
-      'Follow general sales best practices for this stage.'
+      languagePack.stageInstructions[
+        stage as keyof typeof languagePack.stageInstructions
+      ] || languagePack.stageInstructions.name_collection
     );
   }
 }
