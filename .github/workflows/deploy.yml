@@ -1,0 +1,82 @@
+name: Deploy to Home Server
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Deploy to server
+        run: |
+          ssh -o StrictHostKeyChecking=no -p ${{ vars.SERVER_PORT }} ${{ vars.SERVER_USERNAME }}@${{ vars.SERVER_HOST }} '
+            set -e
+
+            export PATH="/home/alex/.nvm/versions/node/v22.17.0/bin:$PATH"
+
+            APP_DIR=/home/${{ vars.SERVER_USERNAME }}/glutamize-api
+
+            if [ ! -d "$APP_DIR/.git" ]; then
+              echo "Cloning repository..."
+              rm -rf "$APP_DIR"
+              git clone git@github.com:Glutamize/glutamize-api.git "$APP_DIR"
+            else
+              echo "Pulling latest changes..."
+              cd "$APP_DIR"
+              git reset --hard
+              git clean -fd
+              git config pull.rebase true
+              git pull origin main
+            fi
+
+            cd "$APP_DIR"
+
+            echo "Writing .env..."
+            echo "DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }}" > ./.env
+            echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> ./.env
+            echo "GEMINI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> ./.env
+            echo "PORT=3434" >> .env
+            echo "CORS_ORIGIN=${{ vars.CORS_ORIGIN }}" >> ./.env
+            echo "NODE_ENV=production" >> ./.env
+            echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> ./.env
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> ./.env
+            echo "SESSION_SECRET=${{ secrets.SESSION_SECRET }}" >> ./.env            
+            echo "SHOPIFY_API_KEY=${{ secrets.SHOPIFY_API_KEY }}" >> ./.env
+            echo "SHOPIFY_API_SECRET=${{ secrets.SHOPIFY_API_SECRET }}" >> ./.env
+            echo "SHOPIFY_API_SCOPES=${{ vars.SHOPIFY_API_SCOPES }}" >> ./.env
+            echo "AI_SERVICE_URL=${{ vars.AI_SERVICE_URL }}" >> ./.env
+            echo "REDIS_HOST=${{ vars.REDIS_HOST }}" >> ./.env
+            echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" >> ./.env
+            echo "TELEGRAM_CHAT_ID=${{ vars.TELEGRAM_CHAT_ID }}" >> ./.env
+            echo "TELEGRAM_TOPIC_ID=${{ vars.TELEGRAM_TOPIC_ID }}" >> ./.env
+  
+         
+
+            echo "Installing and building server..."
+            npm ci
+            npm run build
+
+            echo "Starting server via PM2..."
+            if ! command -v pm2 &>/dev/null; then
+              npm install -g pm2
+            fi
+
+            pm2 describe glutamize-api &>/dev/null && \
+              pm2 restart glutamize-api || \
+              pm2 start npm --name "glutamize-api" -- run start
+
+            pm2 save
+          
+            echo "✅ Deployment complete"
+          '
